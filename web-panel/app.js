@@ -617,3 +617,11 @@ document.getElementById('peptalkForm').addEventListener('submit', (e) => {
 // Inicializar vista al cargar
 renderAllMetrics();
 renderSavedWorkouts();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+if ('wakeLock' in navigator) {
+  navigator.wakeLock.request('screen').catch(() => {});
+}
+

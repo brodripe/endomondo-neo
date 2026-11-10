@@ -11,7 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import { ENDOMONDO_SPORTS, METRIC_LABELS_ES } from '../constants/sports';
 import { LocalWorkoutDatabase } from '../db/localDatabase';
 import {
@@ -42,6 +42,41 @@ const ALL_METRIC_KEYS: MetricTileKey[] = [
   'hydration_ml',
 ];
 
+const LEAFLET_MAP_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #0d1217; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map', { zoomControl: false }).setView([40.4153, -3.6845], 16);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19
+    }).addTo(map);
+    const poly = L.polyline([], { color: '#87C80A', weight: 5 }).addTo(map);
+    let dot = null;
+    window.addTrackPoint = function(lat, lon) {
+      poly.addLatLng([lat, lon]);
+      if (!dot) {
+        dot = L.circleMarker([lat, lon], { radius: 7, fillColor: '#87C80A', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+      } else {
+        dot.setLatLng([lat, lon]);
+      }
+      map.panTo([lat, lon]);
+    };
+    window.resetTrack = function() {
+      poly.setLatLngs([]);
+    };
+  </script>
+</body>
+</html>`;
+
 function formatDuration(sec: number): string {
   const total = Math.max(0, Math.floor(sec));
   const hrs = Math.floor(total / 3600);
@@ -63,7 +98,6 @@ function formatPace(secPerKm: number): string {
 }
 
 export const WorkoutTrackerScreen: React.FC = () => {
-  // Mantiene la pantalla activa en Android mientras el cockpit está visible
   useKeepAwake();
 
   const [selectedSport, setSelectedSport] = useState<SportId>('running');
@@ -75,7 +109,7 @@ export const WorkoutTrackerScreen: React.FC = () => {
   const [audioCoachEnabled, setAudioCoachEnabled] = useState(true);
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
   const [screenLocked, setScreenLocked] = useState(false);
-  const [bleStatusText, setBleStatusText] = useState<string>('BLE FC Disponible');
+  const [bleStatusText, setBleStatusText] = useState<string>('💙 Conectar BLE FC');
 
   const [workout, setWorkout] = useState<LiveWorkoutState>(() => ({
     workoutId: `endo-${Date.now()}`,
@@ -104,6 +138,7 @@ export const WorkoutTrackerScreen: React.FC = () => {
     personalRecordsBroken: [],
   }));
 
+  const webViewRef = useRef<WebView | null>(null);
   const localDbRef = useRef(new LocalWorkoutDatabase());
   const cloudSyncRef = useRef(new EndomondoCloudSync());
   const audioCoachRef = useRef(new EndomondoAudioCoach());
@@ -127,6 +162,9 @@ export const WorkoutTrackerScreen: React.FC = () => {
       });
       const latestPoint = next.points[next.points.length - 1];
       if (latestPoint) {
+        webViewRef.current?.injectJavaScript(
+          `window.addTrackPoint && window.addTrackPoint(${latestPoint.latitude}, ${latestPoint.longitude}); true;`
+        );
         void localDbRef.current.insertTrackPoint(next.workoutId, latestPoint);
         void localDbRef.current.upsertWorkoutSnapshot(next);
         void cloudSyncRef.current.broadcastLiveTelemetry(
@@ -158,7 +196,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
       autoPauseEnabled
     );
 
-    // Conectar el listener del Foreground Service de Android para pantalla apagada
     setAndroidBackgroundLocationListener((locations) => {
       locations.forEach((loc) => ingestLocationObject(loc));
     });
@@ -239,11 +276,11 @@ export const WorkoutTrackerScreen: React.FC = () => {
   const startWorkout = async () => {
     const sportNameEs = ENDOMONDO_SPORTS[selectedSport].nameEs;
 
-    // Iniciar Foreground Service de Android (notificación persistente + GPS con pantalla apagada)
     await startAndroidForegroundGpsService(sportNameEs);
 
     const newWorkoutId = `endo-${Date.now()}`;
     gpsEngineRef.current?.resetFilters();
+    webViewRef.current?.injectJavaScript(`window.resetTrack && window.resetTrack(); true;`);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     setWorkout((prev) => ({
@@ -259,7 +296,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
 
     void audioCoachRef.current.announceWorkoutStarted(sportNameEs);
 
-    // Suscribirse a Peptalks en vivo de amigos
     cloudSyncRef.current.subscribeToLivePeptalks(newWorkoutId, (peptalk) => {
       setWorkout((prev) => ({
         ...prev,
@@ -268,7 +304,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
       void audioCoachRef.current.announceIncomingPeptalk(peptalk);
     });
 
-    // GPS de Doble Frecuencia L1+L5 (BestForNavigation) en primer plano
     locationSubRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
@@ -311,7 +346,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Cabecera estilo Endomondo con Selector de Deporte y Audio Coach */}
       <View style={styles.header}>
         <Pressable
           style={styles.sportPill}
@@ -358,7 +392,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Barra Bluetooth LE Android + Bloqueo de pantalla contra lluvia/sudor */}
       <View style={styles.subHeaderBar}>
         <Pressable onPress={handleConnectBleStrap} style={styles.bleButton}>
           <Text style={styles.bleText}>{bleStatusText}</Text>
@@ -376,7 +409,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      {/* Banner de Auto-Pausa */}
       {workout.status === 'auto_paused' && (
         <View style={styles.autoPauseBanner}>
           <Text style={styles.autoPauseText}>
@@ -385,7 +417,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Pestañas: Tracker vs Parciales (Laps) */}
       <View style={styles.tabBar}>
         <Pressable
           style={[styles.tab, activeTab === 'tracker' && styles.tabActive]}
@@ -405,7 +436,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
 
       {activeTab === 'tracker' ? (
         <>
-          {/* Cuadrícula Icónica de 4 Métricas de Endomondo (Pulsa para cambiar métrica) */}
           <View style={styles.metricsGrid}>
             {gridMetrics.map((metricKey, idx) => {
               const meta = METRIC_LABELS_ES[metricKey];
@@ -425,33 +455,13 @@ export const WorkoutTrackerScreen: React.FC = () => {
             })}
           </View>
 
-          {/* Mapa GPS con polilínea del recorrido */}
           <View style={styles.mapContainer}>
-            <MapView
+            <WebView
+              ref={webViewRef}
+              originWhitelist={['*']}
+              source={{ html: LEAFLET_MAP_HTML }}
               style={StyleSheet.absoluteFillObject}
-              showsUserLocation
-              followsUserLocation
-            >
-              {workout.points.length > 1 && (
-                <Polyline
-                  coordinates={workout.points.map((p) => ({
-                    latitude: p.latitude,
-                    longitude: p.longitude,
-                  }))}
-                  strokeColor="#87C80A"
-                  strokeWidth={5}
-                />
-              )}
-              {workout.points.length > 0 && (
-                <Marker
-                  coordinate={{
-                    latitude: workout.points[0].latitude,
-                    longitude: workout.points[0].longitude,
-                  }}
-                  title="Salida"
-                />
-              )}
-            </MapView>
+            />
           </View>
         </>
       ) : (
@@ -484,7 +494,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
         />
       )}
 
-      {/* Controles principales de entrenamiento */}
       <View style={styles.controlsRow}>
         {workout.status === 'idle' || workout.status === 'completed' ? (
           <Pressable style={styles.startButton} onPress={startWorkout}>
@@ -510,7 +519,6 @@ export const WorkoutTrackerScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Modal Selector de Deportes Clásicos de Endomondo */}
       <Modal
         visible={sportModalVisible}
         transparent

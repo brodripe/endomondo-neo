@@ -1,0 +1,24 @@
+{
+  "name": "Endomondo Neo",
+  "short_name": "Endomondo",
+  "description": "GPS Sports Tracker con Audio Coach, Auto-Pausa, Laps y Peptalks en vivo",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1217",
+  "theme_color": "#87c80a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='%23101418'/><circle cx='96' cy='96' r='62' fill='%2387c80a'/><text x='96' y='118' font-size='72' text-anchor='middle'>🏃</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='110' fill='%23101418'/><circle cx='256' cy='256' r='170' fill='%2387c80a'/><text x='256' y='315' font-size='190' text-anchor='middle'>🏃</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

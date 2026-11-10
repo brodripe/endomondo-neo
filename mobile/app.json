@@ -30,6 +30,7 @@
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.WAKE_LOCK",
         "android.permission.VIBRATE",
+        "android.permission.INTERNET",
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
@@ -46,15 +47,7 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-sqlite",
-      [
-        "react-native-ble-plx",
-        {
-          "isBackgroundEnabled": true,
-          "modes": ["peripheral", "central"],
-          "bluetoothAlwaysPermission": "Permite a Endomondo Neo conectar sensores Bluetooth LE de frecuencia cardíaca, cadencia y potencia."
-        }
-      ]
+      "expo-sqlite"
     ]
   }
 }
