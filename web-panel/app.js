@@ -108,9 +108,21 @@ function logAndSpeakCoach(text, type = 'coach') {
   item.innerHTML = `<span>[${timeStr}]</span> ${text}`;
   feed.prepend(item);
 
-  if (!state.audioCoachEnabled || !('speechSynthesis' in window)) return;
+  if (!state.audioCoachEnabled) return;
+  const cleanSpeechText = text.replace(/<[^>]*>/g, '').replace(/[🔊⏸️▶️🚀🏁💬⚠️ℹ️💙]/g, '').trim();
+
+  // Puente nativo Android APK (TextToSpeech + Audio Ducking + Vibración)
+  if (window.AndroidBridge && typeof window.AndroidBridge.speak === 'function') {
+    window.AndroidBridge.speak(cleanSpeechText);
+    if (typeof window.AndroidBridge.vibrate === 'function') {
+      window.AndroidBridge.vibrate(180);
+    }
+    return;
+  }
+
+  if (!('speechSynthesis' in window)) return;
   try {
-    const utter = new SpeechSynthesisUtterance(text.replace(/<[^>]*>/g, ''));
+    const utter = new SpeechSynthesisUtterance(cleanSpeechText);
     utter.lang = 'es-ES';
     utter.rate = 1.04;
     window.speechSynthesis.speak(utter);
@@ -427,6 +439,7 @@ function saveWorkoutLocalFirst() {
     avgPace: formatPace(state.avgPaceSecPerKm),
     calories: state.caloriesKcal,
     lapsCount: state.laps.length,
+    userEmail: currentGoogleUser ? currentGoogleUser.email : 'Local',
   };
   saved.unshift(record);
   localStorage.setItem('endomondo_neo_workouts', JSON.stringify(saved.slice(0, 15)));
@@ -614,7 +627,98 @@ document.getElementById('peptalkForm').addEventListener('submit', (e) => {
   document.getElementById('peptalkText').value = '';
 });
 
+// ============================================================================
+// AUTENTICACIÓN CON CUENTA DE GOOGLE (NATIVO ANDROID + WEB OAUTH/MODAL)
+// ============================================================================
+let currentGoogleUser = JSON.parse(localStorage.getItem('endomondo_neo_google_user') || 'null');
+
+function formatDisplayNameFromEmail(email) {
+  const localPart = (email || 'Atleta').split('@')[0];
+  return localPart
+    .replace(/[._-]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function applyGoogleUserSession(email, customName = '') {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  const displayName = (customName || '').trim() || formatDisplayNameFromEmail(cleanEmail);
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    displayName
+  )}&background=87c80a&color=091005&bold=true`;
+
+  currentGoogleUser = {
+    email: cleanEmail,
+    displayName,
+    avatarUrl,
+    signedInAt: Date.now(),
+  };
+  localStorage.setItem('endomondo_neo_google_user', JSON.stringify(currentGoogleUser));
+  renderGoogleAuthState();
+  logAndSpeakCoach(`✅ Sesión iniciada con Google. ¡Bienvenido a Endomondo Neo, ${displayName}!`);
+}
+
+function renderGoogleAuthState() {
+  const btnSignIn = document.getElementById('btnGoogleSignIn');
+  const userPill = document.getElementById('googleUserPill');
+  const syncBadge = document.getElementById('syncStatusBadge');
+
+  if (currentGoogleUser) {
+    btnSignIn.classList.add('hidden');
+    userPill.classList.remove('hidden');
+    document.getElementById('googleUserName').textContent = currentGoogleUser.displayName;
+    document.getElementById('googleUserEmail').textContent = currentGoogleUser.email;
+    document.getElementById('googleUserAvatar').src = currentGoogleUser.avatarUrl;
+    if (syncBadge) {
+      syncBadge.textContent = `☁️ Google Sync (${currentGoogleUser.email})`;
+    }
+  } else {
+    btnSignIn.classList.remove('hidden');
+    userPill.classList.add('hidden');
+    if (syncBadge) {
+      syncBadge.textContent = '💾 Local-First Activo';
+    }
+  }
+}
+
+// Callbacks invocados por MainActivity.java tras el selector nativo de cuentas Google de Android
+window.onAndroidGoogleSignInSuccess = function (accountEmail) {
+  applyGoogleUserSession(accountEmail);
+};
+
+window.onAndroidGoogleSignInFallback = function () {
+  document.getElementById('googleAuthModal').classList.remove('hidden');
+};
+
+document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
+  if (window.AndroidBridge && typeof window.AndroidBridge.signInWithGoogle === 'function') {
+    window.AndroidBridge.signInWithGoogle();
+  } else {
+    document.getElementById('googleAuthModal').classList.remove('hidden');
+  }
+});
+
+document.getElementById('btnCancelGoogleModal').addEventListener('click', () => {
+  document.getElementById('googleAuthModal').classList.add('hidden');
+});
+
+document.getElementById('googleAuthForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const email = document.getElementById('googleEmailInput').value;
+  const name = document.getElementById('googleNameInput').value;
+  document.getElementById('googleAuthModal').classList.add('hidden');
+  applyGoogleUserSession(email, name);
+});
+
+document.getElementById('btnGoogleSignOut').addEventListener('click', () => {
+  currentGoogleUser = null;
+  localStorage.removeItem('endomondo_neo_google_user');
+  renderGoogleAuthState();
+  logAndSpeakCoach('ℹ️ Has cerrado la sesión de Google.');
+});
+
 // Inicializar vista al cargar
+renderGoogleAuthState();
 renderAllMetrics();
 renderSavedWorkouts();
 

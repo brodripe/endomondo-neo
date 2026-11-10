@@ -47,8 +47,58 @@
         <button id="btnConnectBle" class="chip-btn ble-btn" title="Conectar banda de pecho Bluetooth LE (0x180D)">
           💙 Sensor BLE FC
         </button>
+
+        <!-- BOTÓN OFICIAL INICIAR SESIÓN CON GOOGLE / PERFIL DE USUARIO -->
+        <button id="btnGoogleSignIn" class="google-signin-btn" title="Iniciar sesión con tu cuenta de Google">
+          <svg class="google-icon" viewBox="0 0 24 24" width="16" height="16">
+            <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
+            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
+            <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 12.3s.6 3.3 1.6 5.3l3.7-2.8z"/>
+            <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.7-2.9c-1 .7-2.2 1.1-3.6 1.1-3.1 0-5.8-2.1-6.7-5L1.6 16.3C3.5 20.2 7.4 23 12 23z"/>
+          </svg>
+          <span>Iniciar sesión con Google</span>
+        </button>
+
+        <div id="googleUserPill" class="google-user-pill hidden">
+          <img id="googleUserAvatar" src="" alt="Avatar" class="google-avatar" />
+          <div class="google-user-info">
+            <strong id="googleUserName">Usuario</strong>
+            <span id="googleUserEmail">correo@gmail.com</span>
+          </div>
+          <button id="btnGoogleSignOut" class="google-signout-btn" title="Cerrar sesión de Google">✕</button>
+        </div>
       </div>
     </header>
+
+    <!-- MODAL DE AUTENTICACIÓN CON CUENTA DE GOOGLE -->
+    <div id="googleAuthModal" class="auth-modal-backdrop hidden">
+      <div class="auth-modal-card">
+        <div class="auth-modal-header">
+          <svg viewBox="0 0 24 24" width="28" height="28">
+            <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
+            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
+            <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 12.3s.6 3.3 1.6 5.3l3.7-2.8z"/>
+            <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.7-2.9c-1 .7-2.2 1.1-3.6 1.1-3.1 0-5.8-2.1-6.7-5L1.6 16.3C3.5 20.2 7.4 23 12 23z"/>
+          </svg>
+          <h3>Conectar cuenta de Google</h3>
+          <p>Sincroniza tus entrenamientos, récords personales y Peptalks en Endomondo Neo</p>
+        </div>
+        <form id="googleAuthForm" class="auth-form">
+          <label>
+            Correo de tu cuenta de Google (@gmail.com):
+            <input type="email" id="googleEmailInput" placeholder="tu.correo@gmail.com" required />
+          </label>
+          <label>
+            Nombre para mostrar (Audio Coach & Peptalks):
+            <input type="text" id="googleNameInput" placeholder="Ej. Benjamín Rodríguez" />
+          </label>
+          <div class="auth-modal-actions">
+            <button type="button" id="btnCancelGoogleModal" class="btn-secondary">Cancelar</button>
+            <button type="submit" class="btn-google-confirm">Continuar con Google</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- BANNER DE AUTO-PAUSA -->
     <div id="autoPauseBanner" class="autopause-banner hidden">

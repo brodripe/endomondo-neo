@@ -125,6 +125,141 @@ select, input {
   color: var(--ble);
 }
 
+.google-signin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #d1d5db;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.google-signin-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.18);
+}
+
+.google-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #18222c;
+  border: 1px solid var(--endo-green);
+  padding: 4px 10px 4px 5px;
+  border-radius: 24px;
+}
+
+.google-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--endo-green);
+}
+
+.google-user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.google-user-info strong {
+  font-size: 12px;
+  color: #ffffff;
+}
+
+.google-user-info span {
+  font-size: 10px;
+  color: var(--endo-green);
+}
+
+.google-signout-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.auth-modal-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  max-width: 400px;
+  width: 100%;
+  padding: 22px;
+}
+
+.auth-modal-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.auth-modal-header h3 {
+  font-size: 18px;
+  margin-top: 8px;
+}
+
+.auth-modal-header p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.auth-form input {
+  padding: 10px;
+  font-size: 14px;
+}
+
+.auth-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-google-confirm {
+  flex: 1;
+  background: #4285f4;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 24px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .autopause-banner {
   background: linear-gradient(90deg, #f59e0b, #d97706);
   color: #111827;
