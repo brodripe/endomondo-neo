@@ -48,6 +48,10 @@
           💙 Sensor BLE FC
         </button>
 
+        <button id="btnFirebaseSetup" class="chip-btn firebase-btn" title="Conectar con proyecto Firebase (Cloud Firestore + Auth)">
+          🔥 Firebase Backend
+        </button>
+
         <!-- BOTÓN OFICIAL INICIAR SESIÓN CON GOOGLE / PERFIL DE USUARIO -->
         <button id="btnGoogleSignIn" class="google-signin-btn" title="Iniciar sesión con tu cuenta de Google">
           <svg class="google-icon" viewBox="0 0 24 24" width="16" height="16">
@@ -95,6 +99,35 @@
           <div class="auth-modal-actions">
             <button type="button" id="btnCancelGoogleModal" class="btn-secondary">Cancelar</button>
             <button type="submit" class="btn-google-confirm">Continuar con Google</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE CONEXIÓN CON FIREBASE (CLOUD FIRESTORE + AUTH) -->
+    <div id="firebaseConfigModal" class="auth-modal-backdrop hidden">
+      <div class="auth-modal-card">
+        <div class="auth-modal-header">
+          <div style="font-size:28px;">🔥</div>
+          <h3>Conectar Backend Firebase</h3>
+          <p>Pega el bloque <code>firebaseConfig</code> de tu consola de Firebase o introduce el <strong>Project ID</strong> y <strong>Web API Key</strong> para sincronizar entrenamientos, perfiles y Peptalks en Cloud Firestore.</p>
+        </div>
+        <form id="firebaseConfigForm" class="auth-form">
+          <label>
+            Pegar snippet de Firebase Console (opcional, rellena los campos automáticamente):
+            <textarea id="firebaseRawSnippet" rows="3" placeholder="const firebaseConfig = { apiKey: 'AIza...', projectId: 'mi-endomondo', ... };"></textarea>
+          </label>
+          <label>
+            Firebase Project ID:
+            <input type="text" id="firebaseProjectIdInput" placeholder="ej. endomondo-neo-prod" required />
+          </label>
+          <label>
+            Firebase Web API Key:
+            <input type="text" id="firebaseApiKeyInput" placeholder="AIzaSy..." required />
+          </label>
+          <div class="auth-modal-actions">
+            <button type="button" id="btnCancelFirebaseModal" class="btn-secondary">Cerrar</button>
+            <button type="submit" class="btn-firebase-confirm">🔥 Guardar y Sincronizar</button>
           </div>
         </form>
       </div>

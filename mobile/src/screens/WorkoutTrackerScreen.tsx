@@ -55,8 +55,8 @@ const LEAFLET_MAP_HTML = `<!DOCTYPE html>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map', { zoomControl: false }).setView([40.4153, -3.6845], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const map = L.map('map', { zoomControl: true }).setView([40.4153, -3.6845], 16);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
     const poly = L.polyline([], { color: '#87C80A', weight: 5 }).addTo(map);

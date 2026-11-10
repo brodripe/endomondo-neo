@@ -125,6 +125,40 @@ select, input {
   color: var(--ble);
 }
 
+.chip-btn.firebase-btn {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fbbf24;
+}
+
+.chip-btn.firebase-btn.connected {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+
+textarea {
+  background: #0f151b;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.btn-firebase-confirm {
+  flex: 1;
+  background: linear-gradient(90deg, #f59e0b, #ea580c);
+  color: #111827;
+  border: none;
+  padding: 12px;
+  border-radius: 24px;
+  font-weight: 900;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .google-signin-btn {
   display: inline-flex;
   align-items: center;
@@ -392,6 +426,11 @@ select, input {
   height: 320px;
   width: 100%;
   background: #0b0f13;
+}
+
+/* Filtro deportivo oscuro sobre mapas libres de API Key (OpenStreetMap) */
+.endo-dark-map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%);
 }
 
 .map-overlay-controls {

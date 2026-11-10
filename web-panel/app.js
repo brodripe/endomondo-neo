@@ -56,12 +56,43 @@ const state = {
   laps: [],
 };
 
-// Inicialización del Mapa Vectorial Leaflet (CartoDB Dark Matter)
+// Inicialización del Mapa Vectorial Leaflet (100% Libre de API Key: OpenStreetMap + Esri Topo/Satélite)
 const map = L.map('liveMap', { zoomControl: true }).setView([40.4153, -3.6845], 15);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap & CartoDB',
+
+const osmStreetLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap',
   maxZoom: 19,
-}).addTo(map);
+  className: 'endo-dark-map-tiles',
+});
+
+const esriStreetLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+  {
+    attribution: '&copy; Esri',
+    maxZoom: 19,
+  }
+);
+
+const esriSatelliteLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  {
+    attribution: '&copy; Esri Satellite',
+    maxZoom: 19,
+  }
+);
+
+osmStreetLayer.addTo(map);
+L.control
+  .layers(
+    {
+      '🌙 Deportivo Oscuro (OSM)': osmStreetLayer,
+      '🗺️ Callejero Claro': esriStreetLayer,
+      '🛰️ Satélite Trail': esriSatelliteLayer,
+    },
+    null,
+    { position: 'topright' }
+  )
+  .addTo(map);
 
 const routePolyline = L.polyline([], { color: '#87c80a', weight: 5 }).addTo(map);
 let currentMarker = null;
@@ -430,20 +461,29 @@ function stopTrackingLoop() {
 function saveWorkoutLocalFirst() {
   const saved = JSON.parse(localStorage.getItem('endomondo_neo_workouts') || '[]');
   const sport = SPORTS_CONFIG[state.sportId];
+  const workoutId = `endo-${Date.now()}`;
   const record = {
-    id: `endo-${Date.now()}`,
+    id: workoutId,
     date: new Date().toLocaleString('es-ES'),
+    sportId: state.sportId,
     sportName: `${sport.icon} ${sport.name}`,
     distanceKm: (state.distanceMeters / 1000).toFixed(2),
+    distanceMeters: Math.round(state.distanceMeters),
     duration: formatDuration(state.activeDurationSec),
+    activeDurationSec: Math.round(state.activeDurationSec),
     avgPace: formatPace(state.avgPaceSecPerKm),
     calories: state.caloriesKcal,
+    elevationGainMeters: Math.round(state.elevationGainMeters),
     lapsCount: state.laps.length,
     userEmail: currentGoogleUser ? currentGoogleUser.email : 'Local',
+    syncedToFirebase: false,
   };
   saved.unshift(record);
-  localStorage.setItem('endomondo_neo_workouts', JSON.stringify(saved.slice(0, 15)));
+  localStorage.setItem('endomondo_neo_workouts', JSON.stringify(saved.slice(0, 25)));
   renderSavedWorkouts();
+
+  // Sincronizar automáticamente con Firebase Cloud Firestore si está configurado
+  void syncWorkoutToFirebaseFirestore(record, state.points, state.laps);
 }
 
 function renderSavedWorkouts() {
@@ -624,7 +664,204 @@ document.getElementById('peptalkForm').addEventListener('submit', (e) => {
   const msg = document.getElementById('peptalkText').value.trim();
   if (!msg) return;
   logAndSpeakCoach(`💬 <strong>Peptalk en vivo de ${author}:</strong> "¡${msg}!"`, 'peptalk');
+  void sendPeptalkToFirebaseFirestore(author, msg);
   document.getElementById('peptalkText').value = '';
+});
+
+// ============================================================================
+// BACKEND FIREBASE (CLOUD FIRESTORE + GOOGLE USER SYNC)
+// ============================================================================
+let firebaseConfig = JSON.parse(localStorage.getItem('endomondo_neo_firebase_config') || 'null');
+
+function isFirebaseReady() {
+  return Boolean(firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey);
+}
+
+function getFirestoreBaseUrl() {
+  return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    firebaseConfig.projectId
+  )}/databases/(default)/documents`;
+}
+
+function renderFirebaseStatusUI() {
+  const btn = document.getElementById('btnFirebaseSetup');
+  const syncBadge = document.getElementById('syncStatusBadge');
+  if (!btn) return;
+  if (isFirebaseReady()) {
+    btn.classList.add('connected');
+    btn.textContent = `🔥 Firebase: ${firebaseConfig.projectId}`;
+    if (syncBadge) {
+      syncBadge.textContent = `🔥 Firestore (${firebaseConfig.projectId})`;
+    }
+  } else {
+    btn.classList.remove('connected');
+    btn.textContent = '🔥 Firebase Backend';
+  }
+}
+
+async function syncUserProfileToFirebaseFirestore(user) {
+  if (!isFirebaseReady() || !user) return;
+  try {
+    const docId = encodeURIComponent(user.email);
+    const url = `${getFirestoreBaseUrl()}/users/${docId}?key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}`;
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          email: { stringValue: user.email },
+          displayName: { stringValue: user.displayName },
+          avatarUrl: { stringValue: user.avatarUrl || '' },
+          updatedAt: { integerValue: `${Date.now()}` },
+        },
+      }),
+    });
+  } catch (err) {
+    console.warn('Error sincronizando usuario en Firestore:', err);
+  }
+}
+
+async function syncWorkoutToFirebaseFirestore(record, points = [], laps = []) {
+  if (!isFirebaseReady()) return;
+  try {
+    const sampledPoints = points.slice(0, 200).map((p) => ({
+      lat: Number(p.lat.toFixed(5)),
+      lon: Number(p.lon.toFixed(5)),
+      alt: Math.round(p.alt || 0),
+    }));
+    const url = `${getFirestoreBaseUrl()}/workouts/${encodeURIComponent(
+      record.id
+    )}?key=${encodeURIComponent(firebaseConfig.apiKey)}`;
+
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          id: { stringValue: record.id },
+          date: { stringValue: record.date },
+          sportName: { stringValue: record.sportName },
+          distanceKm: { stringValue: `${record.distanceKm}` },
+          duration: { stringValue: record.duration },
+          avgPace: { stringValue: record.avgPace },
+          calories: { integerValue: `${record.calories || 0}` },
+          lapsCount: { integerValue: `${record.lapsCount || 0}` },
+          userEmail: { stringValue: record.userEmail || 'Local' },
+          routeJson: { stringValue: JSON.stringify(sampledPoints) },
+          lapsJson: { stringValue: JSON.stringify(laps) },
+          createdAt: { integerValue: `${Date.now()}` },
+        },
+      }),
+    });
+    if (res.ok) {
+      logAndSpeakCoach(`☁️ Entrenamiento sincronizado en Firebase Firestore (${firebaseConfig.projectId}).`);
+    }
+  } catch (err) {
+    console.warn('Error subiendo entrenamiento a Firestore:', err);
+  }
+}
+
+async function fetchWorkoutsFromFirebaseFirestore() {
+  if (!isFirebaseReady()) return;
+  try {
+    const url = `${getFirestoreBaseUrl()}/workouts?pageSize=15&key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.documents || data.documents.length === 0) return;
+
+    const cloudWorkouts = data.documents.map((doc) => {
+      const f = doc.fields || {};
+      return {
+        id: f.id?.stringValue || doc.name.split('/').pop(),
+        date: f.date?.stringValue || '',
+        sportName: f.sportName?.stringValue || '🏃 Entrenamiento',
+        distanceKm: f.distanceKm?.stringValue || '0.00',
+        duration: f.duration?.stringValue || '00:00',
+        avgPace: f.avgPace?.stringValue || '--:--',
+        calories: Number(f.calories?.integerValue || 0),
+        lapsCount: Number(f.lapsCount?.integerValue || 0),
+        userEmail: f.userEmail?.stringValue || 'Cloud',
+        createdAt: Number(f.createdAt?.integerValue || 0),
+      };
+    });
+
+    cloudWorkouts.sort((a, b) => b.createdAt - a.createdAt);
+    localStorage.setItem('endomondo_neo_workouts', JSON.stringify(cloudWorkouts));
+    renderSavedWorkouts();
+  } catch (err) {
+    console.warn('Error descargando entrenamientos de Firestore:', err);
+  }
+}
+
+async function sendPeptalkToFirebaseFirestore(authorName, message) {
+  if (!isFirebaseReady()) return;
+  try {
+    const url = `${getFirestoreBaseUrl()}/workouts/live_global/peptalks?key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}`;
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          authorName: { stringValue: authorName },
+          message: { stringValue: message },
+          userEmail: { stringValue: currentGoogleUser ? currentGoogleUser.email : 'Anon' },
+          createdAt: { integerValue: `${Date.now()}` },
+        },
+      }),
+    });
+  } catch (err) {
+    console.warn('Error enviando Peptalk a Firestore:', err);
+  }
+}
+
+// Eventos del modal de configuración de Firebase
+document.getElementById('btnFirebaseSetup').addEventListener('click', () => {
+  if (firebaseConfig) {
+    document.getElementById('firebaseProjectIdInput').value = firebaseConfig.projectId || '';
+    document.getElementById('firebaseApiKeyInput').value = firebaseConfig.apiKey || '';
+  }
+  document.getElementById('firebaseConfigModal').classList.remove('hidden');
+});
+
+document.getElementById('btnCancelFirebaseModal').addEventListener('click', () => {
+  document.getElementById('firebaseConfigModal').classList.add('hidden');
+});
+
+document.getElementById('firebaseRawSnippet').addEventListener('input', (e) => {
+  const raw = e.target.value;
+  const projMatch = raw.match(/projectId\s*:\s*["']([^"']+)["']/);
+  const keyMatch = raw.match(/apiKey\s*:\s*["']([^"']+)["']/);
+  if (projMatch) document.getElementById('firebaseProjectIdInput').value = projMatch[1];
+  if (keyMatch) document.getElementById('firebaseApiKeyInput').value = keyMatch[1];
+});
+
+document.getElementById('firebaseConfigForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const projectId = document.getElementById('firebaseProjectIdInput').value.trim();
+  const apiKey = document.getElementById('firebaseApiKeyInput').value.trim();
+  if (!projectId || !apiKey) return;
+
+  firebaseConfig = { projectId, apiKey };
+  localStorage.setItem('endomondo_neo_firebase_config', JSON.stringify(firebaseConfig));
+  document.getElementById('firebaseConfigModal').classList.add('hidden');
+  renderFirebaseStatusUI();
+
+  logAndSpeakCoach(`🔥 Backend Firebase conectado al proyecto ${projectId}. Sincronizando con Cloud Firestore.`);
+  if (currentGoogleUser) {
+    await syncUserProfileToFirebaseFirestore(currentGoogleUser);
+  }
+  const localWorkouts = JSON.parse(localStorage.getItem('endomondo_neo_workouts') || '[]');
+  for (const w of localWorkouts.slice(0, 5)) {
+    await syncWorkoutToFirebaseFirestore(w);
+  }
+  await fetchWorkoutsFromFirebaseFirestore();
 });
 
 // ============================================================================
@@ -655,6 +892,7 @@ function applyGoogleUserSession(email, customName = '') {
   };
   localStorage.setItem('endomondo_neo_google_user', JSON.stringify(currentGoogleUser));
   renderGoogleAuthState();
+  void syncUserProfileToFirebaseFirestore(currentGoogleUser);
   logAndSpeakCoach(`✅ Sesión iniciada con Google. ¡Bienvenido a Endomondo Neo, ${displayName}!`);
 }
 
@@ -718,9 +956,38 @@ document.getElementById('btnGoogleSignOut').addEventListener('click', () => {
 });
 
 // Inicializar vista al cargar
+renderFirebaseStatusUI();
 renderGoogleAuthState();
 renderAllMetrics();
 renderSavedWorkouts();
+if (isFirebaseReady()) {
+  void fetchWorkoutsFromFirebaseFirestore();
+}
+
+// Centrar el mapa automáticamente en la ubicación GPS real del móvil al abrir la app
+if ('geolocation' in navigator) {
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      simLat = latitude;
+      simLon = longitude;
+      map.setView([latitude, longitude], 16);
+      if (!currentMarker) {
+        currentMarker = L.circleMarker([latitude, longitude], {
+          radius: 8,
+          fillColor: '#87c80a',
+          color: '#ffffff',
+          weight: 2,
+          fillOpacity: 1,
+        }).addTo(map);
+      } else {
+        currentMarker.setLatLng([latitude, longitude]);
+      }
+    },
+    () => {},
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
