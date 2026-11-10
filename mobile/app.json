@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Endomondo Neo",
+    "slug": "endomondo-neo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#101418",
+    "primaryColor": "#87C80A",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.endomondoneo.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "audio", "bluetooth-central"],
+        "NSLocationWhenInUseUsageDescription": "Endomondo Neo necesita acceso al GPS para medir tu distancia, ritmo y trazar tu ruta en el mapa.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Endomondo Neo necesita acceso al GPS en segundo plano para seguir registrando tus kilómetros y cantarte tiempos con la pantalla apagada."
+      }
+    },
+    "android": {
+      "package": "com.endomondoneo.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#101418"
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.WAKE_LOCK",
+        "android.permission.VIBRATE",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite a Endomondo Neo registrar tu ruta GPS incluso con la pantalla apagada.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-sqlite",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "Permite a Endomondo Neo conectar sensores Bluetooth LE de frecuencia cardíaca, cadencia y potencia."
+        }
+      ]
+    ]
+  }
+}

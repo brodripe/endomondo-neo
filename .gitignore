@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Expo & React Native
+.expo/
+dist/
+web-build/
+mobile/android/
+mobile/ios/
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.jks
+*.keystore
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# macOS / IDE
+.DS_Store
+.vscode/
+.idea/
+*.log

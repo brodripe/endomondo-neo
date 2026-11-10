@@ -1,0 +1,108 @@
+import { SportDefinition, SportId } from '../types/workout';
+
+export const ENDOMONDO_SPORTS: Record<SportId, SportDefinition> = {
+  running: {
+    id: 'running',
+    nameEs: 'Correr (Running)',
+    icon: '🏃',
+    baseMet: 9.8,
+    usesPaceInsteadOfSpeed: true,
+    autoPauseSpeedThresholdMs: 0.65, // ~2.3 km/h
+    defaultGridMetrics: ['duration', 'distance', 'pace_current', 'heart_rate'],
+  },
+  trail_running: {
+    id: 'trail_running',
+    nameEs: 'Trail Running',
+    icon: '⛰️',
+    baseMet: 11.2,
+    usesPaceInsteadOfSpeed: true,
+    autoPauseSpeedThresholdMs: 0.45, // Permite subidas técnicas lentas
+    defaultGridMetrics: ['duration', 'distance', 'elevation_gain', 'heart_rate'],
+  },
+  cycling_road: {
+    id: 'cycling_road',
+    nameEs: 'Ciclismo en Ruta',
+    icon: '🚴',
+    baseMet: 8.5,
+    usesPaceInsteadOfSpeed: false,
+    autoPauseSpeedThresholdMs: 1.4, // ~5.0 km/h
+    defaultGridMetrics: ['duration', 'distance', 'speed_kmh', 'heart_rate'],
+  },
+  cycling_mtb: {
+    id: 'cycling_mtb',
+    nameEs: 'Ciclismo de Montaña (MTB)',
+    icon: '🚵',
+    baseMet: 9.5,
+    usesPaceInsteadOfSpeed: false,
+    autoPauseSpeedThresholdMs: 1.1,
+    defaultGridMetrics: ['duration', 'distance', 'speed_kmh', 'elevation_gain'],
+  },
+  walking: {
+    id: 'walking',
+    nameEs: 'Caminar',
+    icon: '🚶',
+    baseMet: 3.8,
+    usesPaceInsteadOfSpeed: true,
+    autoPauseSpeedThresholdMs: 0.35,
+    defaultGridMetrics: ['duration', 'distance', 'pace_avg', 'calories'],
+  },
+  hiking: {
+    id: 'hiking',
+    nameEs: 'Senderismo (Hiking)',
+    icon: '🥾',
+    baseMet: 6.0,
+    usesPaceInsteadOfSpeed: true,
+    autoPauseSpeedThresholdMs: 0.3,
+    defaultGridMetrics: ['duration', 'distance', 'elevation_gain', 'calories'],
+  },
+  kayaking: {
+    id: 'kayaking',
+    nameEs: 'Kayak / Piragüismo',
+    icon: '🛶',
+    baseMet: 5.5,
+    usesPaceInsteadOfSpeed: false,
+    autoPauseSpeedThresholdMs: 0.4,
+    defaultGridMetrics: ['duration', 'distance', 'speed_kmh', 'heart_rate'],
+  },
+  roller_skating: {
+    id: 'roller_skating',
+    nameEs: 'Patinaje en Línea',
+    icon: '🛼',
+    baseMet: 7.5,
+    usesPaceInsteadOfSpeed: false,
+    autoPauseSpeedThresholdMs: 0.9,
+    defaultGridMetrics: ['duration', 'distance', 'speed_kmh', 'calories'],
+  },
+  xc_skiing: {
+    id: 'xc_skiing',
+    nameEs: 'Esquí de Fondo',
+    icon: '⛷️',
+    baseMet: 9.0,
+    usesPaceInsteadOfSpeed: true,
+    autoPauseSpeedThresholdMs: 0.6,
+    defaultGridMetrics: ['duration', 'distance', 'pace_current', 'elevation_gain'],
+  },
+  swimming_open: {
+    id: 'swimming_open',
+    nameEs: 'Aguas Abiertas',
+    icon: '🏊',
+    baseMet: 8.3,
+    usesPaceInsteadOfSpeed: true,
+    autoPauseSpeedThresholdMs: 0.25,
+    defaultGridMetrics: ['duration', 'distance', 'pace_avg', 'heart_rate'],
+  },
+};
+
+export const METRIC_LABELS_ES: Record<string, { label: string; unit: string }> = {
+  duration: { label: 'DURACIÓN', unit: 'h:mm:ss' },
+  distance: { label: 'DISTANCIA', unit: 'km' },
+  pace_current: { label: 'RITMO ACTUAL', unit: 'min/km' },
+  pace_avg: { label: 'RITMO MEDIO', unit: 'min/km' },
+  pace_lap: { label: 'RITMO VUELTA', unit: 'min/km' },
+  speed_kmh: { label: 'VELOCIDAD', unit: 'km/h' },
+  heart_rate: { label: 'FREC. CARDÍACA', unit: 'ppm' },
+  calories: { label: 'CALORÍAS', unit: 'kcal' },
+  elevation_gain: { label: 'ASCENSO (+)', unit: 'm' },
+  cadence: { label: 'CADENCIA', unit: 'ppm' },
+  hydration_ml: { label: 'HIDRATACIÓN', unit: 'ml' },
+};

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Endomondo Neo — GPS Tracker, Audio Coach & Live Peptalks</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- BARRA SUPERIOR CLÁSICA ENDOMONDO NEO -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo">🟢</div>
+        <div>
+          <h1>ENDOMONDO <span class="neo-badge">NEO</span></h1>
+          <p class="subtitle">GPS L1+L5 · Kalman Filter · Audio Coach · Local-First SQLite</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <label class="sport-selector-wrap">
+          <span>Deporte:</span>
+          <select id="sportSelect">
+            <option value="running">🏃 Correr (Running)</option>
+            <option value="trail_running">⛰️ Trail Running</option>
+            <option value="cycling_road">🚴 Ciclismo en Ruta</option>
+            <option value="cycling_mtb">🚵 Ciclismo MTB</option>
+            <option value="walking">🚶 Caminar</option>
+            <option value="hiking">🥾 Senderismo (Hiking)</option>
+            <option value="kayaking">🛶 Kayak / Piragüismo</option>
+            <option value="roller_skating">🛼 Patinaje en Línea</option>
+            <option value="xc_skiing">⛷️ Esquí de Fondo</option>
+          </select>
+        </label>
+
+        <button id="btnAudioCoach" class="chip-btn active" title="Activar/Desactivar Entrenador por Voz (TTS)">
+          🔊 Audio Coach: ON
+        </button>
+        <button id="btnAutoPause" class="chip-btn active" title="Pausa automática en semáforos o paradas">
+          ⏸️ Auto-Pausa: ON
+        </button>
+        <button id="btnConnectBle" class="chip-btn ble-btn" title="Conectar banda de pecho Bluetooth LE (0x180D)">
+          💙 Sensor BLE FC
+        </button>
+      </div>
+    </header>
+
+    <!-- BANNER DE AUTO-PAUSA -->
+    <div id="autoPauseBanner" class="autopause-banner hidden">
+      ⚡ <strong>AUTO-PAUSA ACTIVA</strong> — Velocidad inferior al umbral del deporte. Muévete para reanudar automáticamente.
+    </div>
+
+    <!-- LAYOUT PRINCIPAL: DISPOSITIVO MÓVIL + PANEL DE ANÁLISIS & PEPTALKS -->
+    <main class="main-grid">
+      <!-- COLUMNA IZQUIERDA: COCKPIT DE ENTRENAMIENTO (ESTILO ENDOMONDO) -->
+      <section class="tracker-card">
+        <div class="card-header">
+          <div class="gps-status">
+            <span class="gps-dot" id="gpsStatusDot"></span>
+            <span id="gpsModeLabel">GPS Dual L1+L5 Ready (Kalman Activo)</span>
+          </div>
+          <div class="ghost-target">
+            👻 Meta / Ghost:
+            <select id="targetPaceSelect">
+              <option value="270">4:30 min/km</option>
+              <option value="300" selected>5:00 min/km</option>
+              <option value="330">5:30 min/km</option>
+              <option value="360">6:00 min/km</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- CUADRÍCULA ICÓNICA DE 4 MÉTRICAS INTERCAMBIABLES -->
+        <div class="metrics-grid" id="metricsGrid">
+          <div class="metric-tile" data-tile-index="0" title="Pulsa para cambiar métrica">
+            <span class="metric-label" id="tileLabel0">DURACIÓN ACTIVA</span>
+            <span class="metric-value" id="tileValue0">00:00</span>
+            <span class="metric-unit" id="tileUnit0">min:seg · pulsa para cambiar</span>
+          </div>
+          <div class="metric-tile" data-tile-index="1" title="Pulsa para cambiar métrica">
+            <span class="metric-label" id="tileLabel1">DISTANCIA</span>
+            <span class="metric-value" id="tileValue1">0.00</span>
+            <span class="metric-unit" id="tileUnit1">km · pulsa para cambiar</span>
+          </div>
+          <div class="metric-tile" data-tile-index="2" title="Pulsa para cambiar métrica">
+            <span class="metric-label" id="tileLabel2">RITMO ACTUAL</span>
+            <span class="metric-value" id="tileValue2">--:--</span>
+            <span class="metric-unit" id="tileUnit2">min/km · pulsa para cambiar</span>
+          </div>
+          <div class="metric-tile" data-tile-index="3" title="Pulsa para cambiar métrica">
+            <span class="metric-label" id="tileLabel3">FREC. CARDÍACA</span>
+            <span class="metric-value heart" id="tileValue3">138</span>
+            <span class="metric-unit" id="tileUnit3">ppm (Zona 3 Aeróbica)</span>
+          </div>
+        </div>
+
+        <!-- BARRA DE ESTADO GHOST / OBJETIVO -->
+        <div class="ghost-bar">
+          <span id="ghostDeltaText">👻 Ghost Pacer: Listo en la línea de salida (Objetivo 5:00/km)</span>
+          <span id="hydrationBadge">💧 Hidratación: 0 ml</span>
+        </div>
+
+        <!-- MAPA VECTORIAL EN VIVO -->
+        <div class="map-wrapper">
+          <div id="liveMap"></div>
+          <div class="map-overlay-controls">
+            <label>
+              Fuente GPS:
+              <select id="gpsSourceSelect">
+                <option value="simulator" selected>🚀 Simulador Ruta Real (Parque del Retiro / Casa de Campo)</option>
+                <option value="real">🛰️ GPS Real del Dispositivo (navigator.geolocation)</option>
+              </select>
+            </label>
+            <label id="simSpeedWrap">
+              Velocidad Sim:
+              <select id="simSpeedSelect">
+                <option value="1">1x (Tiempo Real)</option>
+                <option value="6" selected>6x (Rápido para probar KMs)</option>
+                <option value="15">15x (Ultra Rápido)</option>
+                <option value="0">🛑 Parada / Semáforo (Probar Auto-Pausa)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- CONTROLES DE ENTRENAMIENTO -->
+        <div class="workout-controls">
+          <button id="btnStart" class="btn-primary">▶ INICIAR ENTRENAMIENTO</button>
+          <button id="btnPause" class="btn-warning hidden">⏸ PAUSAR</button>
+          <button id="btnStop" class="btn-danger hidden">⏹ FINALIZAR Y GUARDAR</button>
+          <button id="btnExportGpx" class="btn-secondary" disabled>⬇ Exportar .GPX</button>
+        </div>
+      </section>
+
+      <!-- COLUMNA DERECHA: AUDIO COACH LOG, LAPS POR KM, PEPTALKS EN VIVO & LOCAL DB -->
+      <section class="side-panel">
+        <!-- PEPTALKS EN VIVO (FUNCIÓN SOCIAL MÍTICA DE ENDOMONDO) -->
+        <div class="panel-card">
+          <div class="panel-title-row">
+            <h2>💬 Peptalks en Vivo (Audio Coach)</h2>
+            <span class="pill">Supabase Realtime</span>
+          </div>
+          <p class="panel-help">
+            En Endomondo, tus amigos podían enviarte ánimos mientras corrías y el Audio Coach te los leía al oído. ¡Pruébalo en vivo!
+          </p>
+          <form id="peptalkForm" class="peptalk-form">
+            <input type="text" id="peptalkAuthor" placeholder="Tu nombre (ej. Laura)" value="Carlos" required />
+            <input type="text" id="peptalkText" placeholder="¡Vamos Benjamín, aprieta en este kilómetro!" value="¡Vamos Benjamín, mantén ese ritmo sub-5!" required />
+            <button type="submit" class="btn-peptalk">🔊 Enviar Peptalk a Auriculares</button>
+          </form>
+          <div id="audioCoachFeed" class="coach-feed">
+            <div class="coach-msg">🎙️ <strong>Audio Coach listo:</strong> Cantará cada kilómetro, ritmo parcial, FC y leerá los Peptalks entrantes.</div>
+          </div>
+        </div>
+
+        <!-- TABLA DE VUELTAS / SPLITS POR KILÓMETRO -->
+        <div class="panel-card">
+          <div class="panel-title-row">
+            <h2>⏱️ Vueltas / Parciales (1 km Splits)</h2>
+            <span class="pill" id="lapCountBadge">0 vueltas</span>
+          </div>
+          <div class="table-scroll">
+            <table class="laps-table">
+              <thead>
+                <tr>
+                  <th>KM</th>
+                  <th>Ritmo</th>
+                  <th>Dif. Meta</th>
+                  <th>Desnivel</th>
+                  <th>FC Media</th>
+                </tr>
+              </thead>
+              <tbody id="lapsTableBody">
+                <tr>
+                  <td colspan="5" class="empty-row">Inicia el entrenamiento para registrar parciales cada 1,000 m.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- HISTORIAL LOCAL-FIRST & RÉCORDS PERSONALES -->
+        <div class="panel-card">
+          <div class="panel-title-row">
+            <h2>🏆 Historial Local-First & Récords (PRs)</h2>
+            <span class="pill" id="syncStatusBadge">💾 Local-First Activo</span>
+          </div>
+          <div id="savedWorkoutsList" class="saved-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
