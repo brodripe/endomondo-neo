@@ -52,8 +52,12 @@
         <button id="btnAutoPause" class="chip-btn active" title="Pausa automática en semáforos o paradas">
           ⏸️ Auto-Pausa: ON
         </button>
-        <button id="btnConnectBle" class="chip-btn ble-btn" title="Conectar banda de pecho Bluetooth LE (0x180D)">
-          💙 Sensor BLE FC
+        <button id="btnConnectBle" class="chip-btn ble-btn" title="Abrir Centro de Sensores de Pulso, Cadencia y Potencia">
+          💙 Sensores & Pulso
+        </button>
+
+        <button id="btnFriendsHub" class="chip-btn active" title="Gestionar Amigos, Ranking, Avances y Logros">
+          👥 Amigos & Logros
         </button>
 
         <button id="btnFirebaseSetup" class="chip-btn firebase-btn" title="Conectar con proyecto Firebase (Cloud Firestore + Auth)">
@@ -176,6 +180,98 @@
       </div>
     </div>
 
+    <!-- MODAL CENTRO DE SENSORES: PULSO BLE, CADENCIA, POTENCIA Y PODÓMETRO -->
+    <div id="sensorsModal" class="auth-modal-backdrop hidden">
+      <div class="auth-modal-card" style="max-width:540px;">
+        <div class="auth-modal-header">
+          <div style="font-size:28px;">💙 ⌚ 👟</div>
+          <h3>Centro de Sensores & Medición de Pulso</h3>
+          <p>Conecta bandas de pecho, brazaletes ópticos, relojes con emisión FC (Bluetooth GATT <code>0x180D</code>), sensores de cadencia (<code>0x1814</code>) y potenciómetros (<code>0x1818</code>).</p>
+        </div>
+
+        <div class="sensor-status-box">
+          <div>
+            <strong id="bleModalStatusTitle">Estado BLE: Listo para buscar sensores</strong>
+            <div id="bleModalSubtext" style="font-size:11px;color:#9ca3af;">Compatible con Polar, Garmin, Wahoo, Coospo, Decathlon, Amazfit y Xiaomi</div>
+          </div>
+          <button type="button" id="btnStartBleScan" class="btn-google-confirm" style="flex:0 0 auto;padding:8px 14px;">
+            🔍 Buscar Sensores BLE
+          </button>
+        </div>
+
+        <div id="discoveredBleList" class="coach-feed" style="max-height:130px;margin:10px 0;">
+          <div class="coach-msg">Pulsa <strong>"🔍 Buscar Sensores BLE"</strong> con tu banda o reloj encendido cerca del móvil.</div>
+        </div>
+
+        <!-- Zonas de Frecuencia Cardíaca en vivo -->
+        <div class="hr-zones-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;">
+            <strong>❤️ Tus 5 Zonas de Frecuencia Cardíaca</strong>
+            <label>FC Máx: <input type="number" id="maxHrInput" value="190" min="140" max="220" style="width:62px;padding:3px 6px;" /> ppm</label>
+          </div>
+          <div class="hr-zones-bars">
+            <div class="hr-z-row z1"><span>Z1 · Recuperación (50-60%)</span><span id="z1Range">95-114 ppm</span></div>
+            <div class="hr-z-row z2"><span>Z2 · Quema Grasa / Aeróbico (60-70%)</span><span id="z2Range">114-133 ppm</span></div>
+            <div class="hr-z-row z3"><span>Z3 · Aeróbico Intenso (70-80%)</span><span id="z3Range">133-152 ppm</span></div>
+            <div class="hr-z-row z4"><span>Z4 · Umbral Anaeróbico (80-90%)</span><span id="z4Range">152-171 ppm</span></div>
+            <div class="hr-z-row z5"><span>Z5 · Esfuerzo Máximo (90-100%)</span><span id="z5Range">171-190 ppm</span></div>
+          </div>
+        </div>
+
+        <div class="auth-modal-actions" style="margin-top:12px;">
+          <button type="button" id="btnSimulatePolarStrap" class="btn-peptalk" style="flex:1;padding:10px;">
+            ⚡ Simular Banda Polar H10 + Cadencia
+          </button>
+          <button type="button" id="btnCloseSensorsModal" class="btn-secondary">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL SOCIAL: AMIGOS, AVANCES EN VIVO Y VITRINA DE LOGROS -->
+    <div id="friendsModal" class="auth-modal-backdrop hidden">
+      <div class="auth-modal-card" style="max-width:620px;max-height:90vh;overflow-y:auto;">
+        <div class="auth-modal-header">
+          <div style="font-size:28px;">👥 🏆 🥇</div>
+          <h3>Comunidad Endomondo Neo — Amigos, Avances y Logros</h3>
+          <p>Conecta con tus amigos por su cuenta de Google, sigue sus entrenamientos en Firebase y compite en el ranking semanal.</p>
+        </div>
+
+        <!-- Formulario para añadir amigo -->
+        <form id="addFriendForm" class="peptalk-form" style="margin-bottom:12px;">
+          <input type="text" id="friendNameInput" placeholder="Nombre (ej. Laura Gómez)" required />
+          <input type="email" id="friendEmailInput" placeholder="Correo Google (ej. laura@gmail.com)" required />
+          <button type="submit" class="btn-peptalk">➕ Añadir Amigo</button>
+        </form>
+
+        <!-- Pestañas internas del Hub Social -->
+        <div class="social-tabs">
+          <button type="button" class="social-tab active" data-social-tab="ranking">🥇 Ranking & Amigos</button>
+          <button type="button" class="social-tab" data-social-tab="feed">🏃 Avances Recientes</button>
+          <button type="button" class="social-tab" data-social-tab="achievements">🏆 Logros & Medallas</button>
+        </div>
+
+        <!-- Contenido Pestaña 1: Ranking & Amigos -->
+        <div id="socialTabRanking" class="social-tab-content">
+          <div id="friendsLeaderboardList" class="saved-list" style="max-height:240px;"></div>
+        </div>
+
+        <!-- Contenido Pestaña 2: Feed de Avances de Amigos -->
+        <div id="socialTabFeed" class="social-tab-content hidden">
+          <div id="friendsActivityFeed" class="saved-list" style="max-height:240px;"></div>
+        </div>
+
+        <!-- Contenido Pestaña 3: Vitrina de Logros y Medallas -->
+        <div id="socialTabAchievements" class="social-tab-content hidden">
+          <div id="achievementsGrid" class="achievements-grid"></div>
+        </div>
+
+        <div class="auth-modal-actions" style="margin-top:14px;">
+          <button type="button" id="btnSyncFriendsCloud" class="btn-google-confirm">🔄 Sincronizar Amigos con Firebase</button>
+          <button type="button" id="btnCloseFriendsModal" class="btn-secondary">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- BANNER DE AUTO-PAUSA -->
     <div id="autoPauseBanner" class="autopause-banner hidden">
       ⚡ <strong>AUTO-PAUSA ACTIVA</strong> — Velocidad inferior al umbral del deporte. Muévete para reanudar automáticamente.
@@ -225,10 +321,19 @@
           </div>
         </div>
 
-        <!-- BARRA DE ESTADO GHOST / OBJETIVO -->
+        <!-- BARRA DE ESTADO GHOST / OBJETIVO + ZONA DE PULSO Y SENSORES -->
         <div class="ghost-bar">
           <span id="ghostDeltaText">👻 Ghost Pacer: Listo en la línea de salida (Objetivo 5:00/km)</span>
           <span id="hydrationBadge">💧 Hidratación: 0 ml</span>
+        </div>
+
+        <div class="sensor-telemetry-strip" id="sensorTelemetryStrip">
+          <div class="hr-zone-pill" id="hrZoneBadge">❤️ Zona 2 (Quema de grasa · 138 ppm)</div>
+          <div class="sensor-mini-stats">
+            <span id="liveCadenceBadge">👟 Cadencia: 166 spm</span>
+            <span id="liveStepsBadge">👣 Pasos: 0</span>
+            <span id="livePowerBadge">⚡ Potencia: -- W</span>
+          </div>
         </div>
 
         <!-- MAPA VECTORIAL EN VIVO -->

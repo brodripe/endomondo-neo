@@ -433,6 +433,127 @@ textarea {
   filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%);
 }
 
+.sensor-telemetry-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #121921;
+  border: 1px solid var(--border-color);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.hr-zone-pill {
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(135, 200, 10, 0.16);
+  color: var(--endo-green-bright);
+}
+
+.sensor-mini-stats {
+  display: flex;
+  gap: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.sensor-status-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #10161d;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.hr-zones-card {
+  background: #10161d;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.hr-zones-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.hr-z-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-weight: 700;
+}
+
+.hr-z-row.z1 { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; }
+.hr-z-row.z2 { background: rgba(135, 200, 10, 0.18); color: #bef264; }
+.hr-z-row.z3 { background: rgba(250, 204, 21, 0.18); color: #fde047; }
+.hr-z-row.z4 { background: rgba(249, 115, 22, 0.20); color: #fdba74; }
+.hr-z-row.z5 { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
+
+.social-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.social-tab {
+  flex: 1;
+  background: #10161d;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.social-tab.active {
+  background: rgba(135, 200, 10, 0.18);
+  color: var(--endo-green-bright);
+  border-color: var(--endo-green);
+}
+
+.achievements-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.achievement-card {
+  background: #10161d;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.achievement-card.unlocked {
+  border-color: var(--endo-green);
+  background: rgba(135, 200, 10, 0.08);
+}
+
+.achievement-icon {
+  font-size: 24px;
+}
+
 .map-overlay-controls {
   display: flex;
   flex-wrap: wrap;

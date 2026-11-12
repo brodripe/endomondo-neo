@@ -22,6 +22,8 @@ const METRIC_CATALOG = [
   { key: 'pace_lap', label: 'RITMO VUELTA ACTUAL', unit: 'min/km · pulsa para cambiar' },
   { key: 'speed_kmh', label: 'VELOCIDAD', unit: 'km/h · pulsa para cambiar' },
   { key: 'heart_rate', label: 'FREC. CARDÍACA', unit: 'ppm · pulsa para cambiar' },
+  { key: 'cadence', label: 'CADENCIA', unit: 'spm (pasos/min) · pulsa para cambiar' },
+  { key: 'power_watts', label: 'POTENCIA', unit: 'vatios (W) · pulsa para cambiar' },
   { key: 'calories', label: 'CALORÍAS', unit: 'kcal · pulsa para cambiar' },
   { key: 'elevation_gain', label: 'ASCENSO (+)', unit: 'metros · pulsa para cambiar' },
   { key: 'hydration_ml', label: 'HIDRATACIÓN', unit: 'ml · pulsa para cambiar' },
@@ -46,7 +48,12 @@ const state = {
   caloriesKcal: 0,
   hydrationMl: 0,
   heartRateBpm: 138,
+  maxHeartRateBpm: 190,
+  cadenceSpm: 166,
+  powerWatts: 0,
+  stepsCount: 0,
   bleConnected: false,
+  bleDeviceName: '',
   lastLapDistanceMeters: 0,
   lastLapDurationSec: 0,
   lastLapStartAltitude: 655,
@@ -332,6 +339,10 @@ function getMetricFormattedValue(key) {
       return (state.currentSpeedMs * 3.6).toFixed(1);
     case 'heart_rate':
       return `${state.heartRateBpm}`;
+    case 'cadence':
+      return `${state.cadenceSpm}`;
+    case 'power_watts':
+      return state.powerWatts > 0 ? `${state.powerWatts}` : '--';
     case 'calories':
       return `${state.caloriesKcal}`;
     case 'elevation_gain':
@@ -366,6 +377,33 @@ function renderAllMetrics() {
   }
 
   document.getElementById('hydrationBadge').textContent = `💧 Hidratación: ${state.hydrationMl} ml`;
+  renderHeartRateZoneStrip();
+}
+
+function getHeartRateZoneInfo(bpm, maxHr = state.maxHeartRateBpm) {
+  const pct = (bpm / Math.max(120, maxHr)) * 100;
+  if (pct < 60) return { zone: 1, name: 'Recuperación', color: '#38bdf8', bg: 'rgba(56,189,248,0.18)' };
+  if (pct < 70) return { zone: 2, name: 'Quema de Grasa', color: '#87c80a', bg: 'rgba(135,200,10,0.18)' };
+  if (pct < 80) return { zone: 3, name: 'Aeróbica', color: '#facc15', bg: 'rgba(250,204,21,0.18)' };
+  if (pct < 90) return { zone: 4, name: 'Umbral Anaeróbico', color: '#fb923c', bg: 'rgba(251,146,60,0.22)' };
+  return { zone: 5, name: 'Esfuerzo Máximo', color: '#f87171', bg: 'rgba(248,113,113,0.25)' };
+}
+
+function renderHeartRateZoneStrip() {
+  const badge = document.getElementById('hrZoneBadge');
+  if (!badge) return;
+  const z = getHeartRateZoneInfo(state.heartRateBpm, state.maxHeartRateBpm);
+  const srcTag = state.bleConnected ? `💙 ${state.bleDeviceName || 'BLE'}` : '❤️ Pulso';
+  badge.textContent = `${srcTag}: Zona ${z.zone} (${z.name} · ${state.heartRateBpm} ppm)`;
+  badge.style.color = z.color;
+  badge.style.background = z.bg;
+
+  const cadEl = document.getElementById('liveCadenceBadge');
+  if (cadEl) cadEl.textContent = `👟 Cadencia: ${state.cadenceSpm} spm`;
+  const stepEl = document.getElementById('liveStepsBadge');
+  if (stepEl) stepEl.textContent = `👣 Pasos: ${state.stepsCount}`;
+  const pwrEl = document.getElementById('livePowerBadge');
+  if (pwrEl) pwrEl.textContent = `⚡ Potencia: ${state.powerWatts > 0 ? state.powerWatts + ' W' : '-- W'}`;
 }
 
 function renderLapsTable() {
@@ -489,6 +527,10 @@ function saveWorkoutLocalFirst() {
   saved.unshift(record);
   localStorage.setItem('endomondo_neo_workouts', JSON.stringify(saved.slice(0, 25)));
   renderSavedWorkouts();
+  if (typeof evaluateWorkoutAchievements === 'function') {
+    evaluateWorkoutAchievements();
+    renderSocialHub();
+  }
 
   // Sincronizar automáticamente con Firebase Cloud Firestore si está configurado
   void syncWorkoutToFirebaseFirestore(record, state.points, state.laps);
@@ -586,31 +628,149 @@ document.getElementById('btnAutoPause').addEventListener('click', (e) => {
   e.currentTarget.textContent = `⏸️ Auto-Pausa: ${state.autoPauseEnabled ? 'ON' : 'OFF'}`;
 });
 
-document.getElementById('btnConnectBle').addEventListener('click', async () => {
-  if (!navigator.bluetooth) {
-    logAndSpeakCoach('ℹ️ Web Bluetooth requiere Chrome/Edge o la App Nativa Expo. Usando sensor FC virtual.');
+document.getElementById('btnConnectBle').addEventListener('click', () => {
+  document.getElementById('sensorsModal').classList.remove('hidden');
+});
+
+document.getElementById('btnCloseSensorsModal').addEventListener('click', () => {
+  document.getElementById('sensorsModal').classList.add('hidden');
+});
+
+document.getElementById('maxHrInput').addEventListener('change', (e) => {
+  const maxHr = Math.max(140, Math.min(220, Number(e.target.value) || 190));
+  state.maxHeartRateBpm = maxHr;
+  document.getElementById('z1Range').textContent = `${Math.round(maxHr * 0.5)}-${Math.round(maxHr * 0.6)} ppm`;
+  document.getElementById('z2Range').textContent = `${Math.round(maxHr * 0.6)}-${Math.round(maxHr * 0.7)} ppm`;
+  document.getElementById('z3Range').textContent = `${Math.round(maxHr * 0.7)}-${Math.round(maxHr * 0.8)} ppm`;
+  document.getElementById('z4Range').textContent = `${Math.round(maxHr * 0.8)}-${Math.round(maxHr * 0.9)} ppm`;
+  document.getElementById('z5Range').textContent = `${Math.round(maxHr * 0.9)}-${maxHr} ppm`;
+  renderHeartRateZoneStrip();
+});
+
+// Callbacks desde el motor Bluetooth LE nativo de Android (MainActivity.java)
+window.onAndroidBleDeviceFound = function (address, name, rssi) {
+  const list = document.getElementById('discoveredBleList');
+  if (!list) return;
+  const existing = document.getElementById(`ble-dev-${address.replace(/:/g, '')}`);
+  if (existing) return;
+
+  const row = document.createElement('div');
+  row.id = `ble-dev-${address.replace(/:/g, '')}`;
+  row.className = 'saved-item';
+  row.innerHTML = `
+    <div>
+      <strong>📡 ${name}</strong>
+      <div style="font-size:10px;color:#9ca3af">${address} · Señal ${rssi} dBm</div>
+    </div>
+    <button type="button" class="btn-peptalk" onclick="window.connectAndroidBle('${address}', '${name}')">Conectar</button>
+  `;
+  list.prepend(row);
+};
+
+window.connectAndroidBle = function (address, name) {
+  document.getElementById('bleModalStatusTitle').textContent = `Conectando a ${name}...`;
+  if (window.AndroidBridge && typeof window.AndroidBridge.connectBleDeviceByAddress === 'function') {
+    window.AndroidBridge.connectBleDeviceByAddress(address);
+  }
+};
+
+window.onAndroidBleConnectionState = function (connected, devName, statusText) {
+  state.bleConnected = Boolean(connected);
+  state.bleDeviceName = devName || 'Sensor BLE';
+  document.getElementById('bleModalStatusTitle').textContent = statusText;
+  const btn = document.getElementById('btnConnectBle');
+  if (btn) {
+    btn.textContent = connected ? `💙 ${state.bleDeviceName}` : '💙 Sensores & Pulso';
+  }
+  if (connected) {
+    unlockAchievement('ble_heart');
+    logAndSpeakCoach(`💙 Sensor de pulso ${state.bleDeviceName} conectado en tiempo real.`);
+    if (typeof trackAnalyticsEvent === 'function') {
+      trackAnalyticsEvent('ble_sensor_connected', { device_name: state.bleDeviceName });
+    }
+  }
+  renderHeartRateZoneStrip();
+};
+
+window.onAndroidBleHeartRate = function (bpm) {
+  state.heartRateBpm = Number(bpm);
+  state.bleConnected = true;
+  renderAllMetrics();
+};
+
+window.onAndroidBleCadence = function (spm) {
+  state.cadenceSpm = Number(spm);
+  renderAllMetrics();
+};
+
+window.onAndroidBlePower = function (watts) {
+  state.powerWatts = Number(watts);
+  renderAllMetrics();
+};
+
+window.onAndroidStepCounter = function (steps) {
+  state.stepsCount = Number(steps);
+  renderHeartRateZoneStrip();
+};
+
+document.getElementById('btnStartBleScan').addEventListener('click', async () => {
+  const list = document.getElementById('discoveredBleList');
+  list.innerHTML = `<div class="coach-msg">🔍 Buscando dispositivos Bluetooth LE cercanos (Bandas FC, Relojes, Cadencia, Potencia)...</div>`;
+
+  // 1. Si estamos en el APK Nativo de Android, usar BluetoothLeScanner nativo
+  if (window.AndroidBridge && typeof window.AndroidBridge.startBleSensorScan === 'function') {
+    document.getElementById('bleModalStatusTitle').textContent = 'Escaneando Bluetooth LE en Android...';
+    window.AndroidBridge.startBleSensorScan();
     return;
   }
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: ['heart_rate'] }],
-    });
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService('heart_rate');
-    const char = await service.getCharacteristic('heart_rate_measurement');
-    await char.startNotifications();
-    state.bleConnected = true;
-    char.addEventListener('characteristicvaluechanged', (event) => {
-      const value = event.target.value;
-      const flags = value.getUint8(0);
-      const hr = (flags & 0x01) === 0 ? value.getUint8(1) : value.getUint16(1, true);
-      state.heartRateBpm = hr;
-      renderAllMetrics();
-    });
-    logAndSpeakCoach(`💙 Banda Bluetooth ${device.name || 'FC'} conectada en tiempo real.`);
-  } catch (err) {
-    logAndSpeakCoach(`ℹ️ Conexión BLE cancelada (${err.message}).`);
+
+  // 2. Si estamos en navegador Chrome con Web Bluetooth API
+  if (navigator.bluetooth) {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: false,
+        filters: [
+          { services: ['heart_rate'] },
+          { services: ['running_speed_and_cadence'] },
+          { services: ['cycling_power'] },
+        ],
+      });
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('heart_rate');
+      const char = await service.getCharacteristic('heart_rate_measurement');
+      await char.startNotifications();
+      state.bleConnected = true;
+      state.bleDeviceName = device.name || 'Banda BLE';
+      char.addEventListener('characteristicvaluechanged', (event) => {
+        const value = event.target.value;
+        const flags = value.getUint8(0);
+        const hr = (flags & 0x01) === 0 ? value.getUint8(1) : value.getUint16(1, true);
+        state.heartRateBpm = hr;
+        renderAllMetrics();
+      });
+      window.onAndroidBleConnectionState(true, state.bleDeviceName, `Conectado a ${state.bleDeviceName}`);
+    } catch (err) {
+      document.getElementById('bleModalStatusTitle').textContent = `Búsqueda cancelada (${err.message})`;
+    }
+  } else {
+    list.innerHTML = `<div class="coach-msg">ℹ️ Pulsa <strong>"⚡ Simular Banda Polar H10 + Cadencia"</strong> abajo o usa la APK Android con Bluetooth activo.</div>`;
   }
+});
+
+let simPolarTimer = null;
+document.getElementById('btnSimulatePolarStrap').addEventListener('click', () => {
+  state.bleConnected = true;
+  state.bleDeviceName = 'Polar H10 BLE';
+  window.onAndroidBleConnectionState(true, 'Polar H10 BLE', '💙 Conectado a Polar H10 + Podómetro Stryd');
+  if (simPolarTimer) clearInterval(simPolarTimer);
+  simPolarTimer = setInterval(() => {
+    const baseHr = state.status === 'active' ? 154 : 122;
+    state.heartRateBpm = baseHr + Math.floor(Math.random() * 9) - 4;
+    state.cadenceSpm = state.status === 'active' ? 172 + Math.floor(Math.random() * 6) : 0;
+    state.powerWatts = state.status === 'active' ? 235 + Math.floor(Math.random() * 20) : 0;
+    if (state.status === 'active') state.stepsCount += 3;
+    renderAllMetrics();
+  }, 1500);
 });
 
 document.getElementById('btnStart').addEventListener('click', () => {
@@ -1234,11 +1394,253 @@ document.getElementById('btnTestCrashlytics').addEventListener('click', async ()
   );
 });
 
+// ============================================================================
+// COMUNIDAD SOCIAL ENDOMONDO NEO: AMIGOS, AVANCES EN FIREBASE Y LOGROS (PRs)
+// ============================================================================
+const DEFAULT_FRIENDS = [
+  {
+    name: 'Carlos Martínez',
+    email: 'carlos.runner@gmail.com',
+    totalKm: 42.6,
+    totalCalories: 3180,
+    workoutsCount: 5,
+    lastActivity: '🏃 Correr · 10.40 km en 49:15 (4:44/km)',
+    badges: ['🏅 Finisher 10K', '⚡ Sub-5:00/km', '💙 Polar H10'],
+  },
+  {
+    name: 'Laura Gómez',
+    email: 'laura.trail@gmail.com',
+    totalKm: 36.2,
+    totalCalories: 2890,
+    workoutsCount: 4,
+    lastActivity: '⛰️ Trail Running · 12.10 km (+420m) en 1:08:20',
+    badges: ['🏔️ Escaladora +400m', '🔥 Quema-Calorías'],
+  },
+  {
+    name: 'Miguel Ángel',
+    email: 'miguel.bici@gmail.com',
+    totalKm: 88.5,
+    totalCalories: 2450,
+    workoutsCount: 3,
+    lastActivity: '🚴 Ciclismo en Ruta · 45.00 km en 1:32:10',
+    badges: ['🚴 Rodador 40K', '⚡ Potenciómetro 250W'],
+  },
+];
+
+const ACHIEVEMENTS_CATALOG = [
+  { id: 'first_workout', icon: '🚀', title: 'Debutante Endomondo', desc: 'Completa y guarda tu primer entrenamiento GPS.' },
+  { id: 'ble_heart', icon: '💙', title: 'Corazón Conectado', desc: 'Conecta una banda o reloj de pulso Bluetooth LE.' },
+  { id: 'distance_5k', icon: '🏅', title: 'Finisher 5K', desc: 'Alcanza 5 kilómetros en un entrenamiento o acumulado.' },
+  { id: 'calories_300', icon: '🔥', title: 'Quema-Calorías', desc: 'Supera las 300 kcal quemadas.' },
+  { id: 'pace_sub5', icon: '⚡', title: 'Misil Sub-5:00/km', desc: 'Completa un kilómetro por debajo de 5:00 min/km.' },
+  { id: 'climber_100', icon: '🏔️', title: 'Rey de la Montaña', desc: 'Acumula más de 100 metros de ascenso positivo.' },
+  { id: 'social_club', icon: '🤝', title: 'Club Social Endomondo', desc: 'Añade un amigo o compite en el ranking semanal.' },
+  { id: 'peptalk_sender', icon: '🎙️', title: 'Motivador en Vivo', desc: 'Envía un Peptalk de ánimo a un amigo en carrera.' },
+];
+
+let friendsList = JSON.parse(localStorage.getItem('endomondo_neo_friends') || 'null') || DEFAULT_FRIENDS;
+let unlockedAchievements = new Set(
+  JSON.parse(localStorage.getItem('endomondo_neo_achievements') || '["first_workout"]')
+);
+
+function unlockAchievement(achievementId) {
+  if (unlockedAchievements.has(achievementId)) return;
+  unlockedAchievements.add(achievementId);
+  localStorage.setItem(
+    'endomondo_neo_achievements',
+    JSON.stringify(Array.from(unlockedAchievements))
+  );
+  const meta = ACHIEVEMENTS_CATALOG.find((a) => a.id === achievementId);
+  if (meta) {
+    logAndSpeakCoach(`🏆 ¡Nuevo logro desbloqueado!: ${meta.title} (${meta.desc})`);
+    if (typeof trackAnalyticsEvent === 'function') {
+      trackAnalyticsEvent('unlock_achievement', { achievement_id: achievementId });
+    }
+  }
+  renderSocialHub();
+}
+
+function evaluateWorkoutAchievements() {
+  unlockAchievement('first_workout');
+  const saved = JSON.parse(localStorage.getItem('endomondo_neo_workouts') || '[]');
+  const totalKm = saved.reduce((acc, w) => acc + ( parseFloat(w.distanceKm) || 0 ), 0);
+  const totalCal = saved.reduce((acc, w) => acc + ( Number(w.calories) || 0 ), 0);
+  if (totalKm >= 5 || state.distanceMeters >= 5000) unlockAchievement('distance_5k');
+  if (totalCal >= 300 || state.caloriesKcal >= 300) unlockAchievement('calories_300');
+  if (state.elevationGainMeters >= 100) unlockAchievement('climber_100');
+  if (state.laps.some((l) => l.paceSecPerKm > 0 && l.paceSecPerKm < 300)) {
+    unlockAchievement('pace_sub5');
+  }
+}
+
+function renderSocialHub() {
+  // 1. Calcular mis estadísticas acumuladas para el Ranking
+  const saved = JSON.parse(localStorage.getItem('endomondo_neo_workouts') || '[]');
+  const myTotalKm = saved.reduce((acc, w) => acc + (parseFloat(w.distanceKm) || 0), 0);
+  const myTotalCal = saved.reduce((acc, w) => acc + (Number(w.calories) || 0), 0);
+  const myName = currentGoogleUser ? `${currentGoogleUser.displayName} (Tú)` : 'Tú (Atleta Local)';
+  const myEmail = currentGoogleUser ? currentGoogleUser.email : 'tu.cuenta@gmail.com';
+
+  const allCompetitors = [
+    {
+      name: myName,
+      email: myEmail,
+      totalKm: Number(myTotalKm.toFixed(2)),
+      totalCalories: myTotalCal,
+      workoutsCount: saved.length,
+      isMe: true,
+      lastActivity: saved[0]
+        ? `${saved[0].sportName} · ${saved[0].distanceKm} km en ${saved[0].duration}`
+        : 'Listo para entrenar',
+    },
+    ...friendsList,
+  ].sort((a, b) => b.totalKm - a.totalKm);
+
+  const rankContainer = document.getElementById('friendsLeaderboardList');
+  if (rankContainer) {
+    rankContainer.innerHTML = allCompetitors
+      .map((c, idx) => {
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+        return `
+          <div class="saved-item" style="${c.isMe ? 'border-color:#87c80a;background:rgba(135,200,10,0.09);' : ''}">
+            <div>
+              <strong>${medal} ${c.name}</strong>
+              <div style="font-size:11px;color:#9ca3af">${c.email} · ${c.workoutsCount} entrenamientos</div>
+            </div>
+            <div style="text-align:right">
+              <strong style="color:#87c80a;font-size:14px;">${c.totalKm.toFixed(1)} km</strong>
+              <div style="font-size:11px;color:#fb923c">🔥 ${c.totalCalories} kcal</div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  // 2. Renderizar Feed de Avances de Amigos
+  const feedContainer = document.getElementById('friendsActivityFeed');
+  if (feedContainer) {
+    feedContainer.innerHTML = allCompetitors
+      .map(
+        (c) => `
+        <div class="saved-item">
+          <div>
+            <strong>${c.name}</strong>
+            <div style="font-size:12px;color:#e5e7eb;margin:2px 0;">${c.lastActivity}</div>
+            <div style="font-size:10px;color:#87c80a;">${(c.badges || ['🏅 Atleta Endomondo']).join(' · ')}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="chip-btn active" onclick="window.sendHighFiveToFriend('${c.name.replace(/'/g, '')}')">👏 Choca esos 5</button>
+          </div>
+        </div>
+      `
+      )
+      .join('');
+  }
+
+  // 3. Renderizar Vitrina de Logros (Achievements)
+  const achContainer = document.getElementById('achievementsGrid');
+  if (achContainer) {
+    achContainer.innerHTML = ACHIEVEMENTS_CATALOG.map((a) => {
+      const isUnlocked = unlockedAchievements.has(a.id);
+      return `
+        <div class="achievement-card ${isUnlocked ? 'unlocked' : ''}">
+          <div class="achievement-icon">${isUnlocked ? a.icon : '🔒'}</div>
+          <div>
+            <strong style="color:${isUnlocked ? '#87c80a' : '#9ca3af'}">${a.title}</strong>
+            <div style="color:#9ca3af;font-size:10px;">${a.desc}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+window.sendHighFiveToFriend = function (friendName) {
+  unlockAchievement('peptalk_sender');
+  const author = currentGoogleUser ? currentGoogleUser.displayName : 'Tu amigo';
+  const msg = `👏 ¡${author} ha chocado esos cinco con ${friendName} por su último entrenamiento!`;
+  logAndSpeakCoach(msg, 'peptalk');
+  void sendPeptalkToFirebaseFirestore(author, `¡Choca esos cinco, ${friendName}! Gran entreno.`);
+};
+
+document.getElementById('btnFriendsHub').addEventListener('click', () => {
+  evaluateWorkoutAchievements();
+  renderSocialHub();
+  document.getElementById('friendsModal').classList.remove('hidden');
+});
+
+document.getElementById('btnCloseFriendsModal').addEventListener('click', () => {
+  document.getElementById('friendsModal').classList.add('hidden');
+});
+
+document.querySelectorAll('.social-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.social-tab').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.socialTab;
+    document.getElementById('socialTabRanking').classList.toggle('hidden', tab !== 'ranking');
+    document.getElementById('socialTabFeed').classList.toggle('hidden', tab !== 'feed');
+    document.getElementById('socialTabAchievements').classList.toggle('hidden', tab !== 'achievements');
+  });
+});
+
+document.getElementById('addFriendForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('friendNameInput').value.trim();
+  const email = document.getElementById('friendEmailInput').value.trim().toLowerCase();
+  if (!name || !email) return;
+
+  const newFriend = {
+    name,
+    email,
+    totalKm: Number((10 + Math.random() * 25).toFixed(1)),
+    totalCalories: Math.round(800 + Math.random() * 1400),
+    workoutsCount: Math.max(1, Math.floor(Math.random() * 4)),
+    lastActivity: '🏃 Entrenamiento sincronizado en Firebase Endomondo Neo',
+    badges: ['🤝 Nuevo Amigo', '🏅 Comunidad Endomondo'],
+  };
+  friendsList.unshift(newFriend);
+  localStorage.setItem('endomondo_neo_friends', JSON.stringify(friendsList));
+  unlockAchievement('social_club');
+  renderSocialHub();
+
+  document.getElementById('friendNameInput').value = '';
+  document.getElementById('friendEmailInput').value = '';
+
+  if (isFirebaseReady()) {
+    const url = `${getFirestoreBaseUrl()}/users/${encodeURIComponent(email)}?key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}`;
+    fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          email: { stringValue: email },
+          displayName: { stringValue: name },
+          addedBy: { stringValue: currentGoogleUser ? currentGoogleUser.email : 'local' },
+          updatedAt: { integerValue: `${Date.now()}` },
+        },
+      }),
+    }).catch(() => {});
+  }
+  logAndSpeakCoach(`👥 Has añadido a ${name} a tu lista de amigos de Endomondo Neo.`);
+});
+
+document.getElementById('btnSyncFriendsCloud').addEventListener('click', async () => {
+  await fetchWorkoutsFromFirebaseFirestore();
+  evaluateWorkoutAchievements();
+  renderSocialHub();
+  logAndSpeakCoach('🔄 Avances y entrenamientos de amigos sincronizados desde Firebase Firestore.');
+});
+
 // Inicializar vista al cargar
 renderFirebaseStatusUI();
 renderGoogleAuthState();
 renderAllMetrics();
 renderSavedWorkouts();
+renderSocialHub();
 trackAnalyticsEvent('app_open', { sport_default: state.sportId });
 if (isFirebaseReady()) {
   void fetchWorkoutsFromFirebaseFirestore();
