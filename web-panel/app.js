@@ -671,7 +671,19 @@ document.getElementById('peptalkForm').addEventListener('submit', (e) => {
 // ============================================================================
 // BACKEND FIREBASE (CLOUD FIRESTORE + GOOGLE USER SYNC)
 // ============================================================================
-let firebaseConfig = JSON.parse(localStorage.getItem('endomondo_neo_firebase_config') || 'null');
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyBbLw9MwK6bF8l230jVCHZXsCDS84G8UwQ',
+  authDomain: 'endomondo-neo.firebaseapp.com',
+  projectId: 'endomondo-neo',
+  storageBucket: 'endomondo-neo.firebasestorage.app',
+  messagingSenderId: '177593536458',
+  appId: '1:177593536458:web:4a739724fa93bee6128933',
+  measurementId: 'G-3QDD46L6S4',
+};
+
+let firebaseConfig =
+  JSON.parse(localStorage.getItem('endomondo_neo_firebase_config') || 'null') ||
+  DEFAULT_FIREBASE_CONFIG;
 
 function isFirebaseReady() {
   return Boolean(firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey);
@@ -798,13 +810,48 @@ async function fetchWorkoutsFromFirebaseFirestore() {
   }
 }
 
+const seenCloudPeptalkIds = new Set();
+let peptalkPollTimer = null;
+
+async function pollLivePeptalksFromFirestore(initialLoad = false) {
+  if (!isFirebaseReady()) return;
+  try {
+    const url = `${getFirestoreBaseUrl()}/workouts/live_global/peptalks?pageSize=20&key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.documents) return;
+
+    for (const doc of data.documents) {
+      const docId = doc.name.split('/').pop();
+      if (!seenCloudPeptalkIds.has(docId)) {
+        seenCloudPeptalkIds.add(docId);
+        if (!initialLoad) {
+          const author = doc.fields?.authorName?.stringValue || 'Amigo';
+          const message = doc.fields?.message?.stringValue || '';
+          if (message) {
+            logAndSpeakCoach(
+              `💬 <strong>Peptalk Cloud de ${author}:</strong> "¡${message}!"`,
+              'peptalk'
+            );
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignorar fallos temporales de red
+  }
+}
+
 async function sendPeptalkToFirebaseFirestore(authorName, message) {
   if (!isFirebaseReady()) return;
   try {
     const url = `${getFirestoreBaseUrl()}/workouts/live_global/peptalks?key=${encodeURIComponent(
       firebaseConfig.apiKey
     )}`;
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -816,10 +863,22 @@ async function sendPeptalkToFirebaseFirestore(authorName, message) {
         },
       }),
     });
+    if (res.ok) {
+      const created = await res.json();
+      if (created.name) {
+        seenCloudPeptalkIds.add(created.name.split('/').pop());
+      }
+    }
   } catch (err) {
     console.warn('Error enviando Peptalk a Firestore:', err);
   }
 }
+
+// Iniciar escucha de Peptalks en la nube cada 4 segundos
+void pollLivePeptalksFromFirestore(true);
+peptalkPollTimer = setInterval(() => {
+  void pollLivePeptalksFromFirestore(false);
+}, 4000);
 
 // Eventos del modal de configuración de Firebase
 document.getElementById('btnFirebaseSetup').addEventListener('click', () => {

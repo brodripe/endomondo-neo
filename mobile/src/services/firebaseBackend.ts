@@ -22,12 +22,22 @@ export class EndomondoFirebaseBackend {
 
   constructor(config?: Partial<FirebaseConfig>) {
     this.config = {
-      apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? '',
-      authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
-      projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? '',
-      storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? '',
-      messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
-      appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '',
+      apiKey:
+        process.env.EXPO_PUBLIC_FIREBASE_API_KEY ??
+        'AIzaSyBbLw9MwK6bF8l230jVCHZXsCDS84G8UwQ',
+      authDomain:
+        process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ??
+        'endomondo-neo.firebaseapp.com',
+      projectId:
+        process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? 'endomondo-neo',
+      storageBucket:
+        process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ??
+        'endomondo-neo.firebasestorage.app',
+      messagingSenderId:
+        process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '177593536458',
+      appId:
+        process.env.EXPO_PUBLIC_FIREBASE_APP_ID ??
+        '1:177593536458:web:4a739724fa93bee6128933',
       ...config,
     };
   }
