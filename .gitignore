@@ -12,10 +12,15 @@ mobile/ios/
 
 # Build artifacts
 *.apk
+*.idsig
 *.aab
 *.ipa
 *.jks
 *.keystore
+android-apk-build/bin/
+android-apk-build/obj/
+android-apk-build/compiled_res/
+android-apk-build/assets/
 
 # Environment & Secrets
 .env
