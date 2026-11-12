@@ -9,6 +9,14 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
+  <!-- Google Analytics 4 (Measurement ID: G-3QDD46L6S4) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-3QDD46L6S4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-3QDD46L6S4', { send_page_view: true });
+  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -50,6 +58,10 @@
 
         <button id="btnFirebaseSetup" class="chip-btn firebase-btn" title="Conectar con proyecto Firebase (Cloud Firestore + Auth)">
           🔥 Firebase Backend
+        </button>
+
+        <button id="btnTelemetryPanel" class="chip-btn active" title="Ver eventos de Google Analytics (G-3QDD46L6S4) y estado de Crashlytics">
+          📊 Analytics & Crashlytics
         </button>
 
         <!-- BOTÓN OFICIAL INICIAR SESIÓN CON GOOGLE / PERFIL DE USUARIO -->
@@ -130,6 +142,37 @@
             <button type="submit" class="btn-firebase-confirm">🔥 Guardar y Sincronizar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE GOOGLE ANALYTICS (G-3QDD46L6S4) & CRASHLYTICS -->
+    <div id="telemetryModal" class="auth-modal-backdrop hidden">
+      <div class="auth-modal-card" style="max-width:520px;">
+        <div class="auth-modal-header">
+          <div style="font-size:26px;">📊 🛡️</div>
+          <h3>Google Analytics 4 & Crashlytics</h3>
+          <p>Measurement ID: <strong>G-3QDD46L6S4</strong> · Proyecto: <strong>endomondo-neo</strong></p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;">
+          <div style="display:flex;justify-content:space-between;background:#10161d;padding:8px 12px;border-radius:8px;border:1px solid #263240;">
+            <span>📈 <strong>Google Analytics:</strong> Activo (<code>G-3QDD46L6S4</code>)</span>
+            <span id="gaEventCountBadge" style="color:#87c80a;font-weight:800;">0 eventos</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;background:#10161d;padding:8px 12px;border-radius:8px;border:1px solid #263240;">
+            <span>🛡️ <strong>Crashlytics:</strong> Activo (<span id="crashDeviceLabel">Web / Android</span>)</span>
+            <span id="crashCountBadge" style="color:#fb7185;font-weight:800;">0 fallos</span>
+          </div>
+          <div>
+            <strong style="display:block;margin-bottom:4px;color:#9ca3af;">Últimos eventos de Analytics y reportes de Crashlytics:</strong>
+            <div id="telemetryLiveFeed" class="coach-feed" style="max-height:170px;"></div>
+          </div>
+          <div class="auth-modal-actions">
+            <button type="button" id="btnTestCrashlytics" class="btn-danger" style="padding:10px;font-size:12px;">
+              🧪 Enviar Fallo de Prueba a Crashlytics
+            </button>
+            <button type="button" id="btnCloseTelemetryModal" class="btn-secondary">Cerrar</button>
+          </div>
+        </div>
       </div>
     </div>
 

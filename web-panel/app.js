@@ -300,6 +300,14 @@ function ingestGpsSample(lat, lon, alt, dtSec, forcedSpeedMs = null) {
     logAndSpeakCoach(
       `🔊 <strong>Kilómetro ${lapNumber} completado:</strong> Último km en ${mins} minutos y ${secs} segundos. Frecuencia cardíaca ${state.heartRateBpm} pulsaciones. ${ghostPhrase}`
     );
+    if (typeof trackAnalyticsEvent === 'function') {
+      trackAnalyticsEvent('lap_completed', {
+        lap_number: lapNumber,
+        pace_sec_per_km: lapPaceSec,
+        heart_rate_bpm: state.heartRateBpm,
+        elev_delta_m: elevDelta,
+      });
+    }
   }
 
   renderAllMetrics();
@@ -627,6 +635,14 @@ document.getElementById('btnStart').addEventListener('click', () => {
   renderAllMetrics();
   const sport = SPORTS_CONFIG[state.sportId];
   logAndSpeakCoach(`🚀 Entrenamiento de ${sport.name} iniciado. ¡A por todas!`);
+  if (typeof trackAnalyticsEvent === 'function') {
+    trackAnalyticsEvent('workout_start', {
+      sport_id: state.sportId,
+      target_pace_sec: state.targetPaceSecPerKm,
+      audio_coach: state.audioCoachEnabled,
+      auto_pause: state.autoPauseEnabled,
+    });
+  }
   startTrackingLoop();
 });
 
@@ -651,6 +667,15 @@ document.getElementById('btnStop').addEventListener('click', () => {
   document.getElementById('btnStop').classList.add('hidden');
 
   saveWorkoutLocalFirst();
+  if (typeof trackAnalyticsEvent === 'function') {
+    trackAnalyticsEvent('workout_complete', {
+      sport_id: state.sportId,
+      distance_km: Number((state.distanceMeters / 1000).toFixed(2)),
+      duration_sec: Math.round(state.activeDurationSec),
+      calories_kcal: state.caloriesKcal,
+      laps_count: state.laps.length,
+    });
+  }
   logAndSpeakCoach(
     `🏁 Entrenamiento finalizado. Distancia total: ${(state.distanceMeters / 1000).toFixed(2)} kilómetros en ${formatDuration(state.activeDurationSec)}. Guardado en base de datos local.`
   );
@@ -1014,11 +1039,207 @@ document.getElementById('btnGoogleSignOut').addEventListener('click', () => {
   logAndSpeakCoach('ℹ️ Has cerrado la sesión de Google.');
 });
 
+// ============================================================================
+// GOOGLE ANALYTICS 4 (G-3QDD46L6S4) & CRASHLYTICS ENGINE
+// ============================================================================
+let gaEventsCount = 0;
+let crashReportsCount = 0;
+
+function getDeviceMetadata() {
+  if (window.AndroidBridge && typeof window.AndroidBridge.getDeviceInfoJson === 'function') {
+    try {
+      const info = JSON.parse(window.AndroidBridge.getDeviceInfoJson());
+      return {
+        platform: 'Android APK',
+        device: `${info.manufacturer} ${info.model} (Android ${info.androidVersion}, API ${info.sdkInt})`,
+        appVersion: info.appVersion || '1.4.0',
+      };
+    } catch {
+      // Fallback
+    }
+  }
+  return {
+    platform: 'Web / PWA',
+    device: navigator.userAgent.slice(0, 70),
+    appVersion: '1.4.0',
+  };
+}
+
+function appendTelemetryFeedItem(htmlText, isCrash = false) {
+  const feed = document.getElementById('telemetryLiveFeed');
+  if (!feed) return;
+  const div = document.createElement('div');
+  div.className = 'coach-msg';
+  if (isCrash) {
+    div.style.borderLeftColor = '#ef4444';
+    div.style.background = 'rgba(239, 68, 68, 0.12)';
+  }
+  const ts = new Date().toLocaleTimeString('es-ES');
+  div.innerHTML = `<span>[${ts}]</span> ${htmlText}`;
+  feed.prepend(div);
+}
+
+function trackAnalyticsEvent(eventName, params = {}) {
+  gaEventsCount += 1;
+  const badge = document.getElementById('gaEventCountBadge');
+  if (badge) badge.textContent = `${gaEventsCount} eventos`;
+
+  const meta = getDeviceMetadata();
+  const enrichedParams = {
+    ...params,
+    platform: meta.platform,
+    user_email: currentGoogleUser ? currentGoogleUser.email : 'anonymous',
+  };
+
+  if (typeof window.gtag === 'function') {
+    try {
+      window.gtag('event', eventName, enrichedParams);
+    } catch {
+      // Ignorar si bloqueador de red
+    }
+  }
+
+  appendTelemetryFeedItem(
+    `📈 <strong>GA4 [G-3QDD46L6S4]</strong> <code>${eventName}</code> · ${JSON.stringify(params)}`
+  );
+
+  if (isFirebaseReady()) {
+    const url = `${getFirestoreBaseUrl()}/analytics_events?key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}`;
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          measurementId: { stringValue: 'G-3QDD46L6S4' },
+          eventName: { stringValue: eventName },
+          platform: { stringValue: meta.platform },
+          device: { stringValue: meta.device },
+          userEmail: { stringValue: enrichedParams.user_email },
+          paramsJson: { stringValue: JSON.stringify(params) },
+          timestamp: { integerValue: `${Date.now()}` },
+        },
+      }),
+    }).catch(() => {});
+  }
+}
+
+async function recordCrashlyticsException(message, stack = '', isFatal = false) {
+  crashReportsCount += 1;
+  const badge = document.getElementById('crashCountBadge');
+  if (badge) badge.textContent = `${crashReportsCount} fallos`;
+
+  const meta = getDeviceMetadata();
+  const reportId = `crash-${Date.now()}`;
+
+  if (typeof window.gtag === 'function') {
+    try {
+      window.gtag('event', 'exception', {
+        description: message,
+        fatal: isFatal,
+      });
+    } catch {
+      // Ignorar
+    }
+  }
+
+  appendTelemetryFeedItem(
+    `🛡️ <strong>Crashlytics (${isFatal ? 'FATAL' : 'NON-FATAL'}):</strong> ${message} <br/><small style="color:#9ca3af">${meta.device}</small>`,
+    true
+  );
+
+  if (isFirebaseReady()) {
+    try {
+      const url = `${getFirestoreBaseUrl()}/crashlytics_reports/${encodeURIComponent(
+        reportId
+      )}?key=${encodeURIComponent(firebaseConfig.apiKey)}`;
+      await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            id: { stringValue: reportId },
+            message: { stringValue: String(message) },
+            stack: { stringValue: String(stack || 'No stack trace') },
+            isFatal: { booleanValue: Boolean(isFatal) },
+            platform: { stringValue: meta.platform },
+            device: { stringValue: meta.device },
+            appVersion: { stringValue: meta.appVersion },
+            userEmail: { stringValue: currentGoogleUser ? currentGoogleUser.email : 'anonymous' },
+            workoutStatus: { stringValue: state.status },
+            sportId: { stringValue: state.sportId },
+            timestamp: { integerValue: `${Date.now()}` },
+          },
+        }),
+      });
+    } catch (e) {
+      console.warn('No se pudo subir el reporte de Crashlytics:', e);
+    }
+  }
+}
+
+// Captura global de errores JavaScript y Promesas rechazadas para Crashlytics
+window.addEventListener('error', (event) => {
+  void recordCrashlyticsException(
+    event.message || 'Uncaught JS Error',
+    `${event.filename || ''}:${event.lineno || 0}:${event.colno || 0}`,
+    false
+  );
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason ? String(event.reason) : 'Unhandled Promise Rejection';
+  void recordCrashlyticsException(reason, 'Promise Rejection', false);
+});
+
+// Comprobar si hubo algún crash nativo de Java en la sesión anterior de Android
+if (
+  window.AndroidBridge &&
+  typeof window.AndroidBridge.consumePendingNativeCrashJson === 'function'
+) {
+  try {
+    const rawCrash = window.AndroidBridge.consumePendingNativeCrashJson();
+    if (rawCrash) {
+      const parsed = JSON.parse(rawCrash);
+      void recordCrashlyticsException(
+        `[Android Native Java Crash] ${parsed.message}`,
+        parsed.stack,
+        true
+      );
+    }
+  } catch {
+    // Ignorar
+  }
+}
+
+document.getElementById('btnTelemetryPanel').addEventListener('click', () => {
+  const meta = getDeviceMetadata();
+  const devLabel = document.getElementById('crashDeviceLabel');
+  if (devLabel) devLabel.textContent = meta.device;
+  document.getElementById('telemetryModal').classList.remove('hidden');
+});
+
+document.getElementById('btnCloseTelemetryModal').addEventListener('click', () => {
+  document.getElementById('telemetryModal').classList.add('hidden');
+});
+
+document.getElementById('btnTestCrashlytics').addEventListener('click', async () => {
+  const fakeError = new Error(
+    'TestCrashlyticsException: Simulación de fallo en sensor GPS/BLE durante entrenamiento'
+  );
+  await recordCrashlyticsException(fakeError.message, fakeError.stack || '', false);
+  logAndSpeakCoach(
+    '🛡️ Reporte de fallo enviado a Firebase Crashlytics (colección crashlytics_reports) y Google Analytics.'
+  );
+});
+
 // Inicializar vista al cargar
 renderFirebaseStatusUI();
 renderGoogleAuthState();
 renderAllMetrics();
 renderSavedWorkouts();
+trackAnalyticsEvent('app_open', { sport_default: state.sportId });
 if (isFirebaseReady()) {
   void fetchWorkoutsFromFirebaseFirestore();
 }

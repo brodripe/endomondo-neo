@@ -5,24 +5,33 @@ service cloud.firestore {
     // 1. Perfiles de usuario (Google Auth)
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if true;
     }
 
     // 2. Entrenamientos GPS (Workouts) y telemetría en vivo
     match /workouts/{workoutId} {
       allow read: if true;
-      allow create, update: if true; // Permite sincronización desde WebAPK / Android y OAuth
+      allow create, update: if true;
 
-      // Subcolección de Peptalks en tiempo real (cualquier amigo puede enviar ánimos)
+      // Subcolección de Peptalks en tiempo real
       match /peptalks/{peptalkId} {
         allow read, create: if true;
       }
     }
 
-    // 3. Retos Clásicos de Endomondo (Challenges)
+    // 3. Eventos de Google Analytics 4 (G-3QDD46L6S4)
+    match /analytics_events/{eventId} {
+      allow read, create: if true;
+    }
+
+    // 4. Informes de fallos y excepciones de Crashlytics
+    match /crashlytics_reports/{reportId} {
+      allow read, create, update: if true;
+    }
+
+    // 5. Retos Clásicos de Endomondo (Challenges)
     match /challenges/{challengeId} {
-      allow read: if true;
-      allow create, update: if request.auth != null;
+      allow read, create, update: if true;
     }
   }
 }

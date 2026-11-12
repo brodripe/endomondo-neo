@@ -5,6 +5,7 @@ import android.accounts.AccountManager;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioAttributes;
@@ -24,11 +25,14 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Locale;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
     private static final int GOOGLE_ACCOUNT_PICKER_REQUEST_CODE = 2002;
+    private static final String PREFS_CRASHLYTICS = "EndomondoCrashlyticsPrefs";
     private WebView webView;
     private TextToSpeech tts;
     private boolean ttsReady = false;
@@ -38,6 +42,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Instalar manejador nativo de Crashlytics para excepciones Java no controladas
+        setupNativeCrashlyticsHandler();
 
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -62,6 +69,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
+        settings.setUserAgentString("EndomondoNeo/1.4 (Android; Mobile; OpenStreetMap)");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
 
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
@@ -78,6 +89,38 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         setContentView(webView);
         webView.loadUrl("file:///android_asset/www/index.html");
+    }
+
+    private void setupNativeCrashlyticsHandler() {
+        final Thread.UncaughtExceptionHandler defaultHandler =
+            Thread.getDefaultUncaughtExceptionHandler();
+
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                try {
+                    StringWriter sw = new StringWriter();
+                    PrintWriter pw = new PrintWriter(sw);
+                    throwable.printStackTrace(pw);
+                    String stackTrace = sw.toString();
+
+                    SharedPreferences prefs = getSharedPreferences(
+                        PREFS_CRASHLYTICS,
+                        Context.MODE_PRIVATE
+                    );
+                    prefs.edit()
+                        .putString("pending_native_crash_msg", throwable.toString())
+                        .putString("pending_native_crash_stack", stackTrace)
+                        .putLong("pending_native_crash_ts", System.currentTimeMillis())
+                        .commit();
+                } catch (Exception ignored) {
+                }
+
+                if (defaultHandler != null) {
+                    defaultHandler.uncaughtException(thread, throwable);
+                }
+            }
+        });
     }
 
     private void requestLocationPermissionsIfNeeded() {
@@ -250,6 +293,34 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     }
                 });
             }
+        }
+
+        @JavascriptInterface
+        public String getDeviceInfoJson() {
+            String manufacturer = Build.MANUFACTURER != null ? Build.MANUFACTURER : "Android";
+            String model = Build.MODEL != null ? Build.MODEL : "Phone";
+            String release = Build.VERSION.RELEASE != null ? Build.VERSION.RELEASE : "14";
+            int sdk = Build.VERSION.SDK_INT;
+            return "{\"manufacturer\":\"" + manufacturer.replace("\"", "")
+                + "\",\"model\":\"" + model.replace("\"", "")
+                + "\",\"androidVersion\":\"" + release.replace("\"", "")
+                + "\",\"sdkInt\":" + sdk + ",\"appVersion\":\"1.4.0\"}";
+        }
+
+        @JavascriptInterface
+        public String consumePendingNativeCrashJson() {
+            SharedPreferences prefs = getSharedPreferences(
+                PREFS_CRASHLYTICS,
+                Context.MODE_PRIVATE
+            );
+            String msg = prefs.getString("pending_native_crash_msg", null);
+            if (msg == null) return "";
+            String stack = prefs.getString("pending_native_crash_stack", "");
+            long ts = prefs.getLong("pending_native_crash_ts", System.currentTimeMillis());
+            prefs.edit().clear().commit();
+            return "{\"message\":\"" + msg.replace("\"", "'").replace("\n", " ")
+                + "\",\"stack\":\"" + stack.replace("\"", "'").replace("\n", "\\n")
+                + "\",\"ts\":" + ts + "}";
         }
     }
 
